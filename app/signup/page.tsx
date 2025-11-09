@@ -1,10 +1,12 @@
 // app/signup/page.tsx
 'use client' 
 
-import { useState, useEffect } from 'react' // <-- Importa useEffect
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient' 
 import { useRouter } from 'next/navigation'
-import Link from 'next/link' // Importamos Link para el enlace
+import Link from 'next/link'
+// --- NUEVA IMPORTACIÓN ---
+import { departments, careersByDepartment } from '@/lib/departments'
 
 export default function SignUpPage() {
   // Estados para cada campo del formulario
@@ -13,28 +15,31 @@ export default function SignUpPage() {
   const [fullName, setFullName] = useState('')
   const [nationalId, setNationalId] = useState('')
   const [studentId, setStudentId] = useState('')
-  const [department, setDepartment] = useState('')
-  const [career, setCareer] = useState('')
+  const [department, setDepartment] = useState('') // Sigue siendo un string
+  const [career, setCareer] = useState('')       // Sigue siendo un string
   const [phoneNumber, setPhoneNumber] = useState('')
+  
+  // --- NUEVO ESTADO PARA LAS CARRERAS FILTRADAS ---
+  const [availableCareers, setAvailableCareers] = useState<string[]>([])
   
   // Estados para UI
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // --- NUEVOS ESTADOS PARA AJUSTES DEL EVENTO ---
+  // Estados para ajustes del evento
   const [checkingSettings, setCheckingSettings] = useState(true)
-  const [registrationsOpen, setRegistrationsOpen] = useState(false) // Por defecto 'false' por seguridad
+  const [registrationsOpen, setRegistrationsOpen] = useState(false)
 
   const router = useRouter()
 
-  // --- NUEVO EFECTO: VERIFICAR SI LOS REGISTROS ESTÁN ABIERTOS ---
   useEffect(() => {
     const fetchEventSettings = async () => {
+      // ... (esta función no cambia) ...
       const { data, error } = await supabase
         .from('event_settings')
         .select('registrations_open')
-        .eq('id', 1) // Siempre es la fila 1
+        .eq('id', 1)
         .single()
 
       if (data) {
@@ -47,12 +52,26 @@ export default function SignUpPage() {
     }
 
     fetchEventSettings()
-  }, []) // El array vacío [] significa que esto se ejecuta solo una vez
+  }, [])
 
-  // --- NUEVA VERSIÓN de handleSignUp ---
+  // --- NUEVA FUNCIÓN: HANDLER DE DEPENDENCIA ---
+  const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newDepartment = e.target.value;
+    setDepartment(newDepartment);
+    
+    // Actualiza la lista de carreras disponibles
+    setAvailableCareers(careersByDepartment[newDepartment] || []);
+    
+    // Resetea la carrera seleccionada
+    setCareer('');
+  }
+
+  // Función de registro (¡NO CAMBIA!)
+  // Sigue funcionando porque 'department' y 'career' son estados de string
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
+    // ... (esta función es idéntica a la anterior) ...
     e.preventDefault()
-
+    
     if (!registrationsOpen) {
       setError('Los registros están cerrados.')
       return
@@ -62,41 +81,27 @@ export default function SignUpPage() {
     setError(null)
 
     try {
-      // 1. Crear el usuario en Supabase Auth
-      // Esta vez, pasamos TODOS los datos del formulario en 'options.data'
-      // El Trigger en la base de datos se encargará del resto.
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email,
         password: password,
         options: {
           data: {
             full_name: fullName,
-            institutional_email: email, // Guardamos el email aquí también
+            institutional_email: email,
             national_id: nationalId,
             student_id: studentId,
-            department: department,
-            career: career,
+            department: department, // Envía el string del departamento
+            career: career,         // Envía el string de la carrera
             phone_number: phoneNumber,
           }
         }
       })
 
-      if (authError) {
-        throw authError
-      }
-
-      if (!authData.user) {
-        throw new Error('No se pudo crear el usuario, por favor intente de nuevo.')
-      }
-
-      // ¡YA NO NECESITAMOS INSERTAR EN 'profiles' DESDE AQUÍ!
-      // El Trigger lo hizo por nosotros.
+      if (authError) throw authError
+      if (!authData.user) throw new Error('No se pudo crear el usuario.')
 
       setLoading(false)
       setSuccess(true)
-
-      // Ya no hay redirección, el usuario verá el mensaje
-      // "¡Registro Exitoso! Te hemos enviado un correo..."
 
     } catch (err: any) {
       console.error(err)
@@ -105,9 +110,7 @@ export default function SignUpPage() {
     }
   }
 
-  // --- RENDERIZADO CONDICIONAL ---
-
-  // Estado de carga inicial mientras se verifican los ajustes
+  // Estado de carga inicial
   if (checkingSettings) {
     return (
       <div className="min-h-screen bg-[#0A0A0A] text-[#E4E4E7] flex items-center justify-center p-4">
@@ -115,6 +118,18 @@ export default function SignUpPage() {
       </div>
     )
   }
+
+  // --- COMPONENTE SELECT (REUTILIZABLE) ---
+  // He movido el estilo del <select> a un componente para no repetir código
+  const SelectInput = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
+    <select
+      {...props}
+      className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41] disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {props.children}
+    </select>
+  )
+
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-[#E4E4E7] flex items-center justify-center p-4">
@@ -131,9 +146,9 @@ export default function SignUpPage() {
 
         <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-8 md:p-12">
           
-          {/* --- VISTA SI LOS REGISTROS ESTÁN CERRADOS --- */}
           {!registrationsOpen ? (
             <div className="text-center">
+              {/* ... (vista de registros cerrados, sin cambios) ... */}
               <h2 className="text-2xl font-bold text-[#FF4500] mb-4">
                 Registros Cerrados
               </h2>
@@ -148,8 +163,6 @@ export default function SignUpPage() {
               </Link>
             </div>
           ) : (
-            
-            // --- VISTA SI LOS REGISTROS ESTÁN ABIERTOS (El formulario) ---
             <>
               {!success ? (
                 <form onSubmit={handleSignUp}>
@@ -162,6 +175,7 @@ export default function SignUpPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     
+                    {/* Campos de texto (sin cambios) */}
                     <div className="form-group mb-2">
                       <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="fullName">
                         Nombre completo *
@@ -172,7 +186,6 @@ export default function SignUpPage() {
                         onChange={(e) => setFullName(e.target.value)} required
                       />
                     </div>
-
                     <div className="form-group mb-2">
                       <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="email">
                         Correo institucional *
@@ -183,7 +196,6 @@ export default function SignUpPage() {
                         onChange={(e) => setEmail(e.target.value)} required
                       />
                     </div>
-
                     <div className="form-group mb-2">
                       <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="nationalId">
                         Número de Cédula *
@@ -194,7 +206,6 @@ export default function SignUpPage() {
                         onChange={(e) => setNationalId(e.target.value)} required
                       />
                     </div>
-
                     <div className="form-group mb-2">
                       <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="studentId">
                         ID de Estudiante (L00...) *
@@ -205,28 +216,44 @@ export default function SignUpPage() {
                         onChange={(e) => setStudentId(e.target.value)} required
                       />
                     </div>
+                    {/* --- FIN CAMPOS DE TEXTO --- */}
 
+                    {/* --- INICIO: NUEVOS SELECTS --- */}
                     <div className="form-group mb-2">
                       <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="department">
-                        Departamento
+                        Departamento *
                       </label>
-                      <input
-                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                        type="text" id="department" value={department}
-                        onChange={(e) => setDepartment(e.target.value)}
-                      />
+                      <SelectInput
+                        id="department"
+                        value={department}
+                        onChange={handleDepartmentChange}
+                        required
+                      >
+                        <option value="" disabled>Selecciona tu departamento...</option>
+                        {departments.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                      </SelectInput>
                     </div>
                     
                     <div className="form-group mb-2">
                       <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="career">
-                        Carrera
+                        Carrera *
                       </label>
-                      <input
-                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                        type="text" id="career" value={career}
+                      <SelectInput
+                        id="career"
+                        value={career}
                         onChange={(e) => setCareer(e.target.value)}
-                      />
+                        required
+                        disabled={!department} // Deshabilitado hasta que se elija un departamento
+                      >
+                        <option value="" disabled>Selecciona tu carrera...</option>
+                        {availableCareers.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </SelectInput>
                     </div>
+                    {/* --- FIN: NUEVOS SELECTS --- */}
 
                     <div className="form-group mb-2">
                       <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="phoneNumber">
@@ -259,26 +286,25 @@ export default function SignUpPage() {
                     {loading ? 'CREANDO CUENTA...' : 'CREAR CUENTA'}
                   </button>
                 </form>
-              ) // ESTE ES EL CÓDIGO CORREGIDO
-                : (
+              ) : (
                 <div className="text-center">
-                    <h2 className="text-2xl font-bold text-[#00FF41] mb-4">
+                  {/* ... (vista de éxito, con el texto corregido) ... */}
+                  <h2 className="text-2xl font-bold text-[#00FF41] mb-4">
                     ¡Registro Exitoso!
-                    </h2>
-                    <p className="text-lg text-[#E4E4E7] mb-4">
+                  </h2>
+                  <p className="text-lg text-[#E4E4E7] mb-4">
                     Te hemos enviado un correo de confirmación.
-                    </p>
-                    <p className="text-base text-[#888888] mb-6">
+                  </p>
+                  <p className="text-base text-[#888888] mb-6">
                     Por favor, revisa tu bandeja de entrada (y spam) para activar tu cuenta.
-                    </p>
-                    <Link href="/login" className="text-[#00FF41] hover:underline">
+                  </p>
+                  <Link href="/login" className="text-[#00FF41] hover:underline">
                     Volver a Iniciar Sesión
-                    </Link>
+                  </Link>
                 </div>
-                )}
+              )}
             </>
           )}
-
         </div>
       </div>
     </div>

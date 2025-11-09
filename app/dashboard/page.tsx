@@ -69,6 +69,7 @@ export default function DashboardPage() {
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null) // ID del desafío que se está enviando
   const [teamRank, setTeamRank] = useState<number | null>(null) // <-- AÑADE ESTA LÍNEA
   const [eventHasEnded, setEventHasEnded] = useState(false) // <-- AÑADE ESTA LÍNEA
+  const [eventIsActive, setEventIsActive] = useState(false) // <-- AÑADE ESTA LÍNEA
 
   // --- FUNCIÓN PRINCIPAL DE CARGA DE DATOS ---
   const checkSessionAndFetchData = async () => {
@@ -80,21 +81,28 @@ export default function DashboardPage() {
     }
     setUser(session.user)
 
-    // *** NUEVO: Cargar ajustes del evento para verificar el tiempo ***
+    // *** NUEVO: Cargar ajustes del evento (LÓGICA MEJORADA) ***
     const { data: settingsData } = await supabase
       .from('event_settings')
-      .select('event_end_time')
+      .select('event_start_time, event_end_time')
       .eq('id', 1)
       .single();
 
-    if (settingsData && settingsData.event_end_time) {
+    if (settingsData) {
       const now = new Date().getTime();
-      const end = new Date(settingsData.event_end_time).getTime();
-      if (now > end) {
+      const start = settingsData.event_start_time ? new Date(settingsData.event_start_time).getTime() : null;
+      const end = settingsData.event_end_time ? new Date(settingsData.event_end_time).getTime() : null;
+
+      if (end && now > end) {
         setEventHasEnded(true); // El evento ha terminado
+        setEventIsActive(false);
+      } else if (start && now > start) {
+        setEventIsActive(true); // El evento está en curso
+        setEventHasEnded(false);
       }
+      // Si no ha empezado, ambos 'false' (estado por defecto)
     }
-    // *** FIN DEL BLOQUE NUEVO ***
+    // *** FIN DEL BLOQUE MEJORADO ***
 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles').select('full_name, department, student_id, is_admin').eq('id', session.user.id).single()
@@ -371,7 +379,8 @@ export default function DashboardPage() {
                 </div>
                 <button
                   onClick={handleLeaveTeam}
-                  className="bg-red-900 text-red-100 border border-red-700 h-10 px-4 rounded font-semibold uppercase tracking-wider text-xs transition-all duration-200 hover:bg-red-800"
+                  className="bg-red-900 text-red-100 border border-red-700 h-10 px-4 rounded font-semibold uppercase tracking-wider text-xs transition-all duration-200 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={eventIsActive || eventHasEnded} // <-- AÑADE ESTA LÍNEA
                 >
                   Abandonar Equipo
                 </button>
@@ -476,55 +485,64 @@ export default function DashboardPage() {
             </div>
           </>
         ) : (
-          // --- VISTA: SI NO TIENE EQUIPO (MUESTRA CREAR/UNIRSE) ---
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-8">
-              <h2 className="text-2xl text-[#00FF41] mb-6">Crear un Equipo</h2>
-              <form onSubmit={handleCreateTeam}>
-                <div className="form-group mb-4">
-                  <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="teamName">Nombre del Equipo</label>
-                  <input
-                    className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                    type="text" id="teamName" value={newTeamName}
-                    onChange={(e) => setNewTeamName(e.target.value)} required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full h-14 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded transition-all duration-200 ease-out hover:bg-[#00D136] hover:-translate-y-0.5 disabled:opacity-50"
-                  disabled={isCreatingTeam || !newTeamName.trim()}
-                >
-                  {isCreatingTeam ? 'CREANDO...' : 'CREAR EQUIPO'}
-                </button>
-              </form>
-            </div>
-
-            <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-8">
-              <h2 className="text-2xl text-[#00FF41] mb-6">Unirse a un Equipo</h2>
-              <div className="max-h-80 overflow-y-auto space-y-3 pr-2">
-                {availableTeams.length > 0 ? availableTeams.map(team => (
-                  <div key={team.id} className="flex justify-between items-center bg-[#1A1A1A] p-4 rounded-md">
-                    <span className="text-lg text-[#E4E4E7]">{team.name}</span>
-                    <button
-                      onClick={() => handleJoinTeam(team.id)}
-                      className="bg-[#2A2A2A] text-[#E4E4E7] border border-[#2A2A2A] h-10 px-6 rounded font-semibold uppercase tracking-wider text-xs transition-all duration-200 hover:bg-[#3A3A3A] disabled:opacity-50"
-                      disabled={isJoiningTeam === team.id}
-                    >
-                      {isJoiningTeam === team.id ? 'UNIENDO...' : 'UNIRSE'}
-                    </button>
-                  </div>
-                )) : (
-                  <p className="text-[#888888]">No hay equipos disponibles. ¡Crea el primero!</p>
-                )}
-              </div>
-            </div>
-
-            {teamError && (
-              <div className="md:col-span-2 bg-red-900 border border-red-500 text-red-100 px-4 py-3 rounded-md">
-                <p>{teamError}</p>
+          // --- VISTA: SI NO TIENE EQUIPO ---
+          <>
+            {(eventIsActive || eventHasEnded) && (
+              <div className="text-center bg-[#141414] border border-[#2A2A2A] rounded-lg p-8 mb-8">
+                <h2 className="text-2xl text-[#FF4500] mb-4">La Creación de Equipos está Cerrada</h2>
+                <p className="text-[#888888]">El período para crear o unirse a equipos ha finalizado.</p>
               </div>
             )}
-          </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-8">
+                <h2 className="text-2xl text-[#00FF41] mb-6">Crear un Equipo</h2>
+                <form onSubmit={handleCreateTeam}>
+                  <div className="form-group mb-4">
+                    <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="teamName">Nombre del Equipo</label>
+                    <input
+                      className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                      type="text" id="teamName" value={newTeamName}
+                      onChange={(e) => setNewTeamName(e.target.value)} required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full h-14 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded transition-all duration-200 ease-out hover:bg-[#00D136] hover:-translate-y-0.5 disabled:opacity-50"
+                    disabled={isCreatingTeam || !newTeamName.trim() || eventIsActive || eventHasEnded} // <-- ACTUALIZA ESTA LÍNEA
+                  >
+                    {isCreatingTeam ? 'CREANDO...' : 'CREAR EQUIPO'}
+                  </button>
+                </form>
+              </div>
+
+              <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-8">
+                <h2 className="text-2xl text-[#00FF41] mb-6">Unirse a un Equipo</h2>
+                <div className="max-h-80 overflow-y-auto space-y-3 pr-2">
+                  {availableTeams.length > 0 ? availableTeams.map(team => (
+                    <div key={team.id} className="flex justify-between items-center bg-[#1A1A1A] p-4 rounded-md">
+                      <span className="text-lg text-[#E4E4E7]">{team.name}</span>
+                      <button
+                        onClick={() => handleJoinTeam(team.id)}
+                        className="bg-[#2A2A2A] text-[#E4E4E7] border border-[#2A2A2A] h-10 px-6 rounded font-semibold uppercase tracking-wider text-xs transition-all duration-200 hover:bg-[#3A3A3A] disabled:opacity-50"
+                        disabled={isJoiningTeam === team.id || eventIsActive || eventHasEnded} // <-- ACTUALIZA ESTA LÍNEA
+                      >
+                        {isJoiningTeam === team.id ? 'UNIENDO...' : 'UNIRSE'}
+                      </button>
+                    </div>
+                  )) : (
+                    <p className="text-[#888888]">No hay equipos disponibles. ¡Crea el primero!</p>
+                  )}
+                </div>
+              </div>
+
+              {teamError && (
+                <div className="md:col-span-2 bg-red-900 border border-red-500 text-red-100 px-4 py-3 rounded-md">
+                  <p>{teamError}</p>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 

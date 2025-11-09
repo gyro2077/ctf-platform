@@ -107,6 +107,13 @@ export default function LoginPage() {
               {loading ? 'ACCEDIENDO...' : 'ACCEDER'}
             </button>
           </form>
+          {/* --- AÑADE ESTE BLOQUE --- */}
+            <div className="text-center mt-6">
+                <Link href="/forgot-password" className="text-sm text-[#888888] hover:text-[#00FF41] hover:underline">
+                ¿Olvidaste tu contraseña?
+                </Link>
+            </div>
+            {/* --- FIN DEL BLOQUE --- */}
 
           {/* Enlace a Registro */}
           <div className="text-center mt-6">
