@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
 import LogoutButton from '@/components/LogoutButton'
+import EventTimer from '@/components/EventTimer'
 
 // --- DEFINICIÓN DE TIPOS ---
 type Profile = {
@@ -66,6 +67,7 @@ export default function DashboardPage() {
   const [submitError, setSubmitError] = useState<{ [key: string]: string | null }>({})
   const [submitSuccess, setSubmitSuccess] = useState<{ [key: string]: boolean }>({})
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null) // ID del desafío que se está enviando
+  const [teamRank, setTeamRank] = useState<number | null>(null) // <-- AÑADE ESTA LÍNEA
 
   // --- FUNCIÓN PRINCIPAL DE CARGA DE DATOS ---
   const checkSessionAndFetchData = async () => {
@@ -111,6 +113,21 @@ export default function DashboardPage() {
       
       // *** NUEVO: Cargar desafíos ya que tenemos un equipo ***
       await fetchChallengesAndSubmissions(teamId)
+
+      // *** NUEVO: Cargar el ranking del equipo ***
+      const { data: scoreboardData, error: rankError } = await supabase
+        .from('scoreboard') // Leemos desde nuestra VIEW pública
+        .select('team_id')
+
+      if (rankError) {
+        console.error('Error al cargar ranking:', rankError)
+      } else if (scoreboardData) {
+        // Encontramos la posición (index) de nuestro equipo en el array
+        const rank = scoreboardData.findIndex(team => team.team_id === teamId)
+        // El índice es 0, 1, 2... así que sumamos 1
+        setTeamRank(rank !== -1 ? rank + 1 : null)
+      }
+      // *** FIN DEL BLOQUE NUEVO ***
 
     } else {
       // NO ESTÁ EN UN EQUIPO
@@ -295,13 +312,31 @@ export default function DashboardPage() {
         </div>
         </header>
 
-      {/* --- SECCIÓN 1: TU INFORMACIÓN --- */}
-      <div className="max-w-6xl mx-auto bg-[#141414] border border-[#2A2A2A] rounded-lg p-8 mb-8">
-        <h2 className="text-2xl text-[#00FF41] mb-4">Tu Información</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <p><span className="text-[#888888]">Estudiante:</span> {profile?.full_name || 'No definido'}</p>
-          <p><span className="text-[#888888]">ID:</span> {profile?.student_id || 'No definido'}</p>
-          <p><span className="text-[#888888]">Departamento:</span> {profile?.department || 'No definido'}</p>
+      {/* ... (después del <header>) ... */}
+
+      {/* --- SECCIÓN 1: TEMPORIZADOR Y TU INFORMACIÓN --- */}
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+
+        {/* Columna del Temporizador */}
+        <div className="lg:col-span-2">
+          <EventTimer />
+        </div>
+
+        {/* Columna de Tu Información */}
+        <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-6">
+          <h2 className="text-2xl text-[#00FF41] mb-4">Tu Info</h2>
+          <p className="mb-1 text-sm"><span className="text-[#888888]">Estudiante:</span> {profile?.full_name || 'N/D'}</p>
+          <p className="mb-4 text-sm"><span className="text-[#888888]">ID:</span> {profile?.student_id || 'N/D'}</p>
+
+          {/* Módulo de Ranking */}
+          {currentTeam && (
+            <div className="bg-[#1A1A1A] p-4 rounded-md text-center">
+              <span className="text-sm text-[#888888] uppercase">Tu Posición</span>
+              <p className="text-4xl font-bold text-[#00FF41] font-mono">
+                {teamRank ? `#${teamRank}` : 'N/A'}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

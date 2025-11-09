@@ -1,9 +1,10 @@
 // app/signup/page.tsx
-'use client' // Directiva obligatoria para usar hooks de React
+'use client' 
 
-import { useState } from 'react'
-import { supabase } from '@/lib/supabaseClient' // Importamos nuestro cliente
-import { useRouter } from 'next/navigation' // Para redirigir al usuario
+import { useState, useEffect } from 'react' // <-- Importa useEffect
+import { supabase } from '@/lib/supabaseClient' 
+import { useRouter } from 'next/navigation'
+import Link from 'next/link' // Importamos Link para el enlace
 
 export default function SignUpPage() {
   // Estados para cada campo del formulario
@@ -15,17 +16,49 @@ export default function SignUpPage() {
   const [department, setDepartment] = useState('')
   const [career, setCareer] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
-
+  
   // Estados para UI
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  // --- NUEVOS ESTADOS PARA AJUSTES DEL EVENTO ---
+  const [checkingSettings, setCheckingSettings] = useState(true)
+  const [registrationsOpen, setRegistrationsOpen] = useState(false) // Por defecto 'false' por seguridad
+
   const router = useRouter()
+
+  // --- NUEVO EFECTO: VERIFICAR SI LOS REGISTROS ESTÁN ABIERTOS ---
+  useEffect(() => {
+    const fetchEventSettings = async () => {
+      const { data, error } = await supabase
+        .from('event_settings')
+        .select('registrations_open')
+        .eq('id', 1) // Siempre es la fila 1
+        .single()
+
+      if (data) {
+        setRegistrationsOpen(data.registrations_open)
+      } else {
+        console.error('Error al cargar ajustes del evento:', error)
+        setError('No se pudo cargar la configuración del evento. Intenta más tarde.')
+      }
+      setCheckingSettings(false)
+    }
+
+    fetchEventSettings()
+  }, []) // El array vacío [] significa que esto se ejecuta solo una vez
 
   // Función que se ejecuta al enviar el formulario
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    
+    // Doble chequeo por si acaso
+    if (!registrationsOpen) {
+      setError('Los registros están cerrados.')
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -36,22 +69,16 @@ export default function SignUpPage() {
         password: password,
       })
 
-      if (authError) {
-        throw authError
-      }
-
-      // Si la creación fue exitosa pero el usuario no está, algo raro pasó
-      if (!authData.user) {
-        throw new Error('No se pudo crear el usuario, por favor intente de nuevo.')
-      }
+      if (authError) throw authError
+      if (!authData.user) throw new Error('No se pudo crear el usuario.')
 
       // 2. Insertar los datos adicionales en la tabla 'profiles'
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
-          id: authData.user.id, // El ID del usuario recién creado
+          id: authData.user.id, 
           full_name: fullName,
-          institutional_email: email, // Usamos el mismo email
+          institutional_email: email,
           national_id: nationalId,
           student_id: studentId,
           department: department,
@@ -59,21 +86,15 @@ export default function SignUpPage() {
           phone_number: phoneNumber,
         })
 
-      if (profileError) {
-        // Nota: Si esto falla, el usuario de Auth ya existe.
-        // En un escenario real, deberíamos manejar la "reversión" o limpieza.
-        throw profileError
-      }
+      if (profileError) throw profileError
 
-      // ¡Todo salió bien!
       setLoading(false)
       setSuccess(true)
-
-      // Opcional: Redirigir después de unos segundos
+      
+      // (Opcional) Si tienes confirmación por email activada, este mensaje es mejor
+      // Por ahora, redirigimos al login
       setTimeout(() => {
-        // Idealmente, aquí rediriges a una página de "Revisa tu email para confirmar"
-        // Por ahora, lo mandamos al login.
-        router.push('/login') // Crearemos esta página después
+        router.push('/login')
       }, 3000)
 
     } catch (err: any) {
@@ -83,11 +104,21 @@ export default function SignUpPage() {
     }
   }
 
+  // --- RENDERIZADO CONDICIONAL ---
+
+  // Estado de carga inicial mientras se verifican los ajustes
+  if (checkingSettings) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] text-[#E4E4E7] flex items-center justify-center p-4">
+        <p className="text-2xl text-[#00FF41]">Cargando...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-[#E4E4E7] flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
-
-        {/* Logo (adaptado de tu index.html) */}
+        
         <header className="text-center mb-8">
           <h1 className="text-4xl font-bold text-[#00FF41] tracking-[4px] text-shadow-[0_0_12px_rgba(0,255,65,0.5)]">
             PROJECT OVERDRIVE
@@ -97,156 +128,149 @@ export default function SignUpPage() {
           </p>
         </header>
 
-        {/* Tarjeta del formulario (adaptado de .auth-card) */}
         <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-8 md:p-12">
+          
+          {/* --- VISTA SI LOS REGISTROS ESTÁN CERRADOS --- */}
+          {!registrationsOpen ? (
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-[#FF4500] mb-4">
+                Registros Cerrados
+              </h2>
+              <p className="text-[#E4E4E7] mb-6">
+                El período de registro para este evento ha finalizado.
+              </p>
+              <Link 
+                href="/login" 
+                className="text-[#00FF41] hover:underline text-lg"
+              >
+                ¿Ya tienes una cuenta? Inicia sesión aquí
+              </Link>
+            </div>
+          ) : (
+            
+            // --- VISTA SI LOS REGISTROS ESTÁN ABIERTOS (El formulario) ---
+            <>
+              {!success ? (
+                <form onSubmit={handleSignUp}>
+                  
+                  {error && (
+                    <div className="bg-red-900 border border-red-500 text-red-100 px-4 py-3 rounded-md mb-6">
+                      <p>{error}</p>
+                    </div>
+                  )}
 
-          {!success ? (
-            <form onSubmit={handleSignUp}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                    
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="fullName">
+                        Nombre completo *
+                      </label>
+                      <input
+                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                        type="text" id="fullName" value={fullName}
+                        onChange={(e) => setFullName(e.target.value)} required
+                      />
+                    </div>
 
-              {/* Mensaje de error */}
-              {error && (
-                <div className="bg-red-900 border border-red-500 text-red-100 px-4 py-3 rounded-md mb-6">
-                  <p>{error}</p>
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="email">
+                        Correo institucional *
+                      </label>
+                      <input
+                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                        type="email" id="email" value={email}
+                        onChange={(e) => setEmail(e.target.value)} required
+                      />
+                    </div>
+
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="nationalId">
+                        Número de Cédula *
+                      </label>
+                      <input
+                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                        type="text" id="nationalId" value={nationalId}
+                        onChange={(e) => setNationalId(e.target.value)} required
+                      />
+                    </div>
+
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="studentId">
+                        ID de Estudiante (L00...) *
+                      </label>
+                      <input
+                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                        type="text" id="studentId" value={studentId}
+                        onChange={(e) => setStudentId(e.target.value)} required
+                      />
+                    </div>
+
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="department">
+                        Departamento
+                      </label>
+                      <input
+                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                        type="text" id="department" value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="career">
+                        Carrera
+                      </label>
+                      <input
+                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                        type="text" id="career" value={career}
+                        onChange={(e) => setCareer(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="phoneNumber">
+                        Número de Teléfono
+                      </label>
+                      <input
+                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                        type="tel" id="phoneNumber" value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="password">
+                        Contraseña *
+                      </label>
+                      <input
+                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                        type="password" id="password" value={password}
+                        onChange={(e) => setPassword(e.target.value)} required
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full mt-6 h-14 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded transition-all duration-200 ease-out hover:bg-[#00D136] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={loading}
+                  >
+                    {loading ? 'CREANDO CUENTA...' : 'CREAR CUENTA'}
+                  </button>
+                </form>
+              ) : (
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold text-[#00FF41] mb-4">
+                    ¡Registro Exitoso!
+                  </h2>
+                  <p className="text-[#E4E4E7]">
+                    Serás redirigido a la página de inicio de sesión...
+                  </p>
                 </div>
               )}
-
-              {/* Grid para el formulario */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-
-                {/* Estilo de .form-group adaptado a Tailwind */}
-                <div className="form-group mb-2">
-                  <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="fullName">
-                    Nombre completo *
-                  </label>
-                  <input
-                    className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                    type="text"
-                    id="fullName"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="form-group mb-2">
-                  <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="email">
-                    Correo institucional *
-                  </label>
-                  <input
-                    className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="form-group mb-2">
-                  <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="nationalId">
-                    Número de Cédula *
-                  </label>
-                  <input
-                    className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                    type="text"
-                    id="nationalId"
-                    value={nationalId}
-                    onChange={(e) => setNationalId(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="form-group mb-2">
-                  <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="studentId">
-                    ID de Estudiante (L00...) *
-                  </label>
-                  <input
-                    className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                    type="text"
-                    id="studentId"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="form-group mb-2">
-                  <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="department">
-                    Departamento
-                  </label>
-                  <input
-                    className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                    type="text"
-                    id="department"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group mb-2">
-                  <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="career">
-                    Carrera
-                  </label>
-                  <input
-                    className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                    type="text"
-                    id="career"
-                    value={career}
-                    onChange={(e) => setCareer(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group mb-2">
-                  <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="phoneNumber">
-                    Número de Teléfono
-                  </label>
-                  <input
-                    className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                    type="tel"
-                    id="phoneNumber"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group mb-2">
-                  <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="password">
-                    Contraseña *
-                  </label>
-                  <input
-                    className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                    type="password"
-                    id="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Botón (adaptado de .btn-primary) */}
-              <button
-                type="submit"
-                className="w-full mt-6 h-14 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded transition-all duration-200 ease-out hover:bg-[#00D136] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={loading}
-              >
-                {loading ? 'CREANDO CUENTA...' : 'CREAR CUENTA'}
-              </button>
-            </form>
-          ) : (
-            // Mensaje de éxito
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-[#00FF41] mb-4">
-                ¡Registro Exitoso!
-              </h2>
-              <p className="text-[#E4E4E7]">
-                Te hemos enviado un correo de confirmación. Por favor, revisa tu bandeja de entrada para activar tu cuenta.
-              </p>
-              <p className="text-[#888888] mt-2">
-                Serás redirigido en 3 segundos...
-              </p>
-            </div>
+            </>
           )}
+
         </div>
       </div>
     </div>
