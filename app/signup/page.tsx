@@ -49,11 +49,10 @@ export default function SignUpPage() {
     fetchEventSettings()
   }, []) // El array vacío [] significa que esto se ejecuta solo una vez
 
-  // Función que se ejecuta al enviar el formulario
+  // --- NUEVA VERSIÓN de handleSignUp ---
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    
-    // Doble chequeo por si acaso
+
     if (!registrationsOpen) {
       setError('Los registros están cerrados.')
       return
@@ -64,38 +63,40 @@ export default function SignUpPage() {
 
     try {
       // 1. Crear el usuario en Supabase Auth
+      // Esta vez, pasamos TODOS los datos del formulario en 'options.data'
+      // El Trigger en la base de datos se encargará del resto.
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email,
         password: password,
+        options: {
+          data: {
+            full_name: fullName,
+            institutional_email: email, // Guardamos el email aquí también
+            national_id: nationalId,
+            student_id: studentId,
+            department: department,
+            career: career,
+            phone_number: phoneNumber,
+          }
+        }
       })
 
-      if (authError) throw authError
-      if (!authData.user) throw new Error('No se pudo crear el usuario.')
+      if (authError) {
+        throw authError
+      }
 
-      // 2. Insertar los datos adicionales en la tabla 'profiles'
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id, 
-          full_name: fullName,
-          institutional_email: email,
-          national_id: nationalId,
-          student_id: studentId,
-          department: department,
-          career: career,
-          phone_number: phoneNumber,
-        })
+      if (!authData.user) {
+        throw new Error('No se pudo crear el usuario, por favor intente de nuevo.')
+      }
 
-      if (profileError) throw profileError
+      // ¡YA NO NECESITAMOS INSERTAR EN 'profiles' DESDE AQUÍ!
+      // El Trigger lo hizo por nosotros.
 
       setLoading(false)
       setSuccess(true)
-      
-      // (Opcional) Si tienes confirmación por email activada, este mensaje es mejor
-      // Por ahora, redirigimos al login
-      setTimeout(() => {
-        router.push('/login')
-      }, 3000)
+
+      // Ya no hay redirección, el usuario verá el mensaje
+      // "¡Registro Exitoso! Te hemos enviado un correo..."
 
     } catch (err: any) {
       console.error(err)
@@ -258,16 +259,23 @@ export default function SignUpPage() {
                     {loading ? 'CREANDO CUENTA...' : 'CREAR CUENTA'}
                   </button>
                 </form>
-              ) : (
+              ) // ESTE ES EL CÓDIGO CORREGIDO
+                : (
                 <div className="text-center">
-                  <h2 className="text-2xl font-bold text-[#00FF41] mb-4">
+                    <h2 className="text-2xl font-bold text-[#00FF41] mb-4">
                     ¡Registro Exitoso!
-                  </h2>
-                  <p className="text-[#E4E4E7]">
-                    Serás redirigido a la página de inicio de sesión...
-                  </p>
+                    </h2>
+                    <p className="text-lg text-[#E4E4E7] mb-4">
+                    Te hemos enviado un correo de confirmación.
+                    </p>
+                    <p className="text-base text-[#888888] mb-6">
+                    Por favor, revisa tu bandeja de entrada (y spam) para activar tu cuenta.
+                    </p>
+                    <Link href="/login" className="text-[#00FF41] hover:underline">
+                    Volver a Iniciar Sesión
+                    </Link>
                 </div>
-              )}
+                )}
             </>
           )}
 

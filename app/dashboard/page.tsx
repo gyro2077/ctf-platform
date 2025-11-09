@@ -68,6 +68,7 @@ export default function DashboardPage() {
   const [submitSuccess, setSubmitSuccess] = useState<{ [key: string]: boolean }>({})
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null) // ID del desafío que se está enviando
   const [teamRank, setTeamRank] = useState<number | null>(null) // <-- AÑADE ESTA LÍNEA
+  const [eventHasEnded, setEventHasEnded] = useState(false) // <-- AÑADE ESTA LÍNEA
 
   // --- FUNCIÓN PRINCIPAL DE CARGA DE DATOS ---
   const checkSessionAndFetchData = async () => {
@@ -78,6 +79,22 @@ export default function DashboardPage() {
       router.push('/login'); return
     }
     setUser(session.user)
+
+    // *** NUEVO: Cargar ajustes del evento para verificar el tiempo ***
+    const { data: settingsData } = await supabase
+      .from('event_settings')
+      .select('event_end_time')
+      .eq('id', 1)
+      .single();
+
+    if (settingsData && settingsData.event_end_time) {
+      const now = new Date().getTime();
+      const end = new Date(settingsData.event_end_time).getTime();
+      if (now > end) {
+        setEventHasEnded(true); // El evento ha terminado
+      }
+    }
+    // *** FIN DEL BLOQUE NUEVO ***
 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles').select('full_name, department, student_id, is_admin').eq('id', session.user.id).single()
@@ -417,30 +434,39 @@ export default function DashboardPage() {
                         </div>
                       )}
                       
-                      {/* Formulario de Flag */}
-                      {!isSolved && (
-                        <form className="mt-auto" onSubmit={(e) => handleFlagSubmit(e, challenge)}>
-                          <div className="flex flex-col gap-2">
-                            <input 
-                              type="text" 
-                              placeholder="CTF{...}"
-                              className="w-full h-12 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] font-mono focus:outline-none focus:border-[#00FF41]"
-                              value={flagInputs[challenge.id] || ''}
-                              onChange={(e) => setFlagInputs(prev => ({ ...prev, [challenge.id]: e.target.value }))}
-                              disabled={isSubmitting === challenge.id}
-                            />
-                            <button
-                              type="submit"
-                              className="w-full h-12 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded transition-all duration-200 ease-out hover:bg-[#00D136] disabled:opacity-50"
-                              disabled={isSubmitting === challenge.id || !flagInputs[challenge.id]}
-                            >
-                              {isSubmitting === challenge.id ? 'ENVIANDO...' : 'ENVIAR FLAG'}
-                            </button>
+                      {/* Formulario de Flag o Mensaje de Fin */}
+                      {!isSolved ? (
+                        eventHasEnded ? (
+                          // Si no está resuelto Y el evento ha terminado
+                          <div className="mt-auto text-center p-4">
+                            <p className="font-bold text-lg text-[#FF4500]">TIEMPO TERMINADO</p>
+                            <p className="text-xs text-[#888888]">El evento ha finalizado.</p>
                           </div>
-                          {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-                          {success && <p className="text-green-500 text-sm mt-2">¡Correcto!</p>}
-                        </form>
-                      )}
+                        ) : (
+                          // Si no está resuelto Y el evento está ACTIVO
+                          <form className="mt-auto" onSubmit={(e) => handleFlagSubmit(e, challenge)}>
+                            <div className="flex flex-col gap-2">
+                              <input 
+                                type="text" 
+                                placeholder="CTF{...}"
+                                className="w-full h-12 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] font-mono focus:outline-none focus:border-[#00FF41]"
+                                value={flagInputs[challenge.id] || ''}
+                                onChange={(e) => setFlagInputs(prev => ({ ...prev, [challenge.id]: e.target.value }))}
+                                disabled={isSubmitting === challenge.id}
+                              />
+                              <button
+                                type="submit"
+                                className="w-full h-12 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded transition-all duration-200 ease-out hover:bg-[#00D136] disabled:opacity-50"
+                                disabled={isSubmitting === challenge.id || !flagInputs[challenge.id]}
+                              >
+                                {isSubmitting === challenge.id ? 'ENVIANDO...' : 'ENVIAR FLAG'}
+                              </button>
+                            </div>
+                            {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+                            {success && <p className="text-green-500 text-sm mt-2">¡Correcto!</p>}
+                          </form>
+                        )
+                      ) : null} {/* Si isSolved es true, no mostrar nada aquí (el badge ya está arriba) */}
                     </div>
                   )
                 }) : (
