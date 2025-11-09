@@ -26,28 +26,38 @@ const calculateTimeRemaining = (targetTime: string): TimeRemaining | null => {
   }
 }
 
-// --- Componente Pequeño para un solo contador ---
-const TimeBlock = ({ value, label }: { value: number, label: string }) => (
-  <div className="flex flex-col items-center">
-    <span className="text-3xl lg:text-4xl font-bold text-[#00FF41] font-mono">
-      {String(value).padStart(2, '0')}
-    </span>
-    <span className="text-xs text-[#888888] uppercase tracking-wider">{label}</span>
-  </div>
-)
-
 // --- Componente Pequeño para un Timer de una línea ---
-const SingleTimer = ({ message, time }: { message: string, time: TimeRemaining }) => (
-  <div>
-    <h3 className="text-sm lg:text-lg text-[#888888] font-semibold mb-3 tracking-wider">{message}</h3>
-    <div className="flex justify-center gap-4 lg:gap-6">
-      <TimeBlock value={time.days} label="Días" />
-      <TimeBlock value={time.hours} label="Horas" />
-      <TimeBlock value={time.minutes} label="Min" />
-      <TimeBlock value={time.seconds} label="Seg" />
+// (Modificado para aceptar un 'isCrucial' para el tamaño)
+const SingleTimer = ({ message, time, isCrucial = false }: { message: string, time: TimeRemaining, isCrucial?: boolean }) => {
+  const textSize = isCrucial ? "text-3xl lg:text-4xl" : "text-2xl lg:text-3xl";
+  const labelColor = isCrucial ? "text-[#E4E4E7] font-semibold" : "text-[#888888]";
+
+  return (
+    <div>
+      <h3 className={`text-sm lg:text-lg mb-3 tracking-wider ${labelColor}`}>
+        {message}
+      </h3>
+      <div className="flex justify-center gap-4 lg:gap-6">
+        <div className="flex flex-col items-center">
+          <span className={`${textSize} font-bold text-[#00FF41] font-mono`}>{String(time.days).padStart(2, '0')}</span>
+          <span className="text-xs text-[#888888] uppercase tracking-wider">Días</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className={`${textSize} font-bold text-[#00FF41] font-mono`}>{String(time.hours).padStart(2, '0')}</span>
+          <span className="text-xs text-[#888888] uppercase tracking-wider">Horas</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className={`${textSize} font-bold text-[#00FF41] font-mono`}>{String(time.minutes).padStart(2, '0')}</span>
+          <span className="text-xs text-[#888888] uppercase tracking-wider">Min</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className={`${textSize} font-bold text-[#00FF41] font-mono`}>{String(time.seconds).padStart(2, '0')}</span>
+          <span className="text-xs text-[#888888] uppercase tracking-wider">Seg</span>
+        </div>
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 // --- Componente Principal del Doble Timer ---
 export default function EventTimer({ variant = 'public' }: { variant?: 'public' | 'dashboard' }) {
@@ -56,105 +66,96 @@ export default function EventTimer({ variant = 'public' }: { variant?: 'public' 
   const [statusMessage, setStatusMessage] = useState('Cargando tiempo del evento...')
 
   useEffect(() => {
-    // 1. Cargar las horas del evento
+    // 1. Cargar las horas del evento (sin cambios)
     const fetchSettings = async () => {
       const { data, error } = await supabase
         .from('event_settings')
         .select('registration_end_time, event_start_time, event_end_time')
         .eq('id', 1)
         .single()
-
-      if (data) {
-        setSettings(data)
-      } else {
-        console.error('Error cargando ajustes del evento:', error)
-        setStatusMessage('No se pudo cargar la configuración del evento.')
-      }
+      if (data) setSettings(data)
+      else setStatusMessage('No se pudo cargar la configuración del evento.')
     }
     fetchSettings()
   }, [])
 
   useEffect(() => {
     if (!settings) return
-
-    // 2. Iniciar el temporizador (se actualiza cada segundo)
+    // 2. Iniciar el temporizador (sin cambios)
     const timerInterval = setInterval(() => {
-      const { registration_end_time, event_start_time, event_end_time } = settings
-      const now = new Date().getTime()
+      const { registration_end_time, event_start_time, event_end_time } = settings;
+      const regTime = registration_end_time ? calculateTimeRemaining(registration_end_time) : null;
+      const startTime = event_start_time ? calculateTimeRemaining(event_start_time) : null;
+      const endTime = event_end_time ? calculateTimeRemaining(event_end_time) : null;
+      setTimers({ regTime, startTime, endTime });
 
-      // Calculamos los 3 contadores
-      const regTime = registration_end_time ? calculateTimeRemaining(registration_end_time) : null
-      const startTime = event_start_time ? calculateTimeRemaining(event_start_time) : null
-      const endTime = event_end_time ? calculateTimeRemaining(event_end_time) : null
-
-      setTimers({ regTime, startTime, endTime })
-
-      // Lógica de mensajes
-      if (endTime === null && event_end_time) {
-        setStatusMessage('EL CTF HA FINALIZADO')
-      } else if (startTime === null && event_start_time) {
-        setStatusMessage('EL CTF ESTÁ EN CURSO')
-      } else if (regTime === null && registration_end_time) {
-        setStatusMessage('EL REGISTRO HA CERRADO')
-      } else {
-        setStatusMessage('EL EVENTO AÚN NO COMIENZA')
-      }
-
-    }, 1000)
-
-    return () => clearInterval(timerInterval)
+      if (endTime === null && event_end_time) setStatusMessage('EL CTF HA FINALIZADO');
+      else if (startTime === null && event_start_time) setStatusMessage('EL CTF ESTÁ EN CURSO');
+      else if (regTime === null && registration_end_time) setStatusMessage('EL REGISTRO HA CERRADO');
+      else setStatusMessage('EL EVENTO AÚN NO COMIENZA');
+    }, 1000);
+    return () => clearInterval(timerInterval);
   }, [settings])
 
-  // --- Lógica de qué timer mostrar ---
+  // --- LÓGICA DE RENDERIZADO (CORREGIDA) ---
   const renderTimers = () => {
     const { regTime, startTime, endTime } = timers;
 
+    // --- Definimos los timers que están activos ---
+    // (Un timer está "activo" si su tiempo futuro existe)
+    const ctfEndTimer = (settings?.event_start_time && !startTime && endTime) 
+        ? <SingleTimer message="EL CTF TERMINA EN:" time={endTime} isCrucial={true} />
+        : null;
+        
+    const ctfStartTimer = (startTime)
+        ? <SingleTimer message="EL CTF COMIENZA EN:" time={startTime} isCrucial={variant === 'dashboard' && !ctfEndTimer} />
+        : null;
+        
+    const regEndTimer = (regTime)
+        ? <SingleTimer message="CIERRE DE REGISTROS:" time={regTime} isCrucial={false} />
+        : null;
+
+    // --- Decidir qué mostrar ---
+    
     // Caso 1: Evento finalizado
     if (settings?.event_end_time && !endTime) {
       return <p className="text-2xl font-bold text-[#FF4500]">EVENTO CONCLUIDO</p>
     }
 
-    // Caso 2: Evento en curso
-    if (settings?.event_start_time && !startTime && endTime) {
-      // El CTF está activo, solo mostramos el timer de FIN
-      return <SingleTimer message="EL CTF TERMINA EN:" time={endTime} />
+    // Caso 2: El CTF está en curso
+    if (ctfEndTimer) {
+      // El CTF está activo (crucial).
+      // Mostramos el timer de FIN.
+      // Y si *aún* está abierto el registro, lo mostramos también (pequeño).
+      return (
+        <div className="flex flex-col gap-8">
+          {ctfEndTimer}
+          {regEndTimer && <div className="opacity-70">{regEndTimer}</div>}
+        </div>
+      )
     }
 
-    // Caso 3: Evento no ha comenzado (mostramos ambos)
-    // El "variant" decide cuál es el "crucial" (grande)
-    if (startTime && regTime) {
-      const regTimer = <SingleTimer message="CIERRE DE REGISTROS:" time={regTime} />
-      const startTimer = <SingleTimer message="EL CTF COMIENZA EN:" time={startTime} />
-
+    // Caso 3: El CTF no ha comenzado (mostramos los timers de inicio)
+    if (ctfStartTimer || regEndTimer) {
       if (variant === 'dashboard') {
         return (
           <div className="flex flex-col gap-8">
-            {startTimer} {/* El crucial (CTF) arriba */}
-            <div className="opacity-70">{regTimer}</div> {/* El secundario abajo */}
+            {ctfStartTimer} {/* CTF Start es crucial (grande) */}
+            {regEndTimer && <div className="opacity-70">{regEndTimer}</div>} {/* Reg End es secundario (pequeño) */}
           </div>
         )
       } else {
-        // Variante pública (scoreboard), los mostramos lado a lado
+        // Variante pública (scoreboard)
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {regTimer}
-            {startTimer}
+            {regEndTimer}
+            {ctfStartTimer}
           </div>
         )
       }
     }
 
-    // Caso 4: Solo queda el timer de inicio (registro ya cerró)
-    if (startTime) {
-      return <SingleTimer message="EL CTF COMIENZA EN:" time={startTime} />
-    }
-
-    // Caso 5: Solo queda el timer de registro (sin hora de inicio)
-    if (regTime) {
-      return <SingleTimer message="CIERRE DE REGISTROS:" time={regTime} />
-    }
-
-    // Estado inicial
+    // Estado inicial o sin fechas
     return <p className="text-[#888888]">{statusMessage}</p>
   }
 

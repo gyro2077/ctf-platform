@@ -67,9 +67,9 @@ export default function DashboardPage() {
   const [submitError, setSubmitError] = useState<{ [key: string]: string | null }>({})
   const [submitSuccess, setSubmitSuccess] = useState<{ [key: string]: boolean }>({})
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null) // ID del desafío que se está enviando
-  const [teamRank, setTeamRank] = useState<number | null>(null) // <-- AÑADE ESTA LÍNEA
-  const [eventHasEnded, setEventHasEnded] = useState(false) // <-- AÑADE ESTA LÍNEA
-  const [eventIsActive, setEventIsActive] = useState(false) // <-- AÑADE ESTA LÍNEA
+  const [teamRank, setTeamRank] = useState<number | null>(null)
+  const [eventHasEnded, setEventHasEnded] = useState(false)
+  const [eventIsActive, setEventIsActive] = useState(false)
 
   // --- FUNCIÓN PRINCIPAL DE CARGA DE DATOS ---
   const checkSessionAndFetchData = async () => {
@@ -84,23 +84,21 @@ export default function DashboardPage() {
     // *** NUEVO: Cargar ajustes del evento (LÓGICA MEJORADA) ***
     const { data: settingsData } = await supabase
       .from('event_settings')
-      .select('event_start_time, event_end_time')
+      .select('registration_end_time, event_end_time') // <-- Pedimos la nueva fecha
       .eq('id', 1)
       .single();
 
     if (settingsData) {
       const now = new Date().getTime();
-      const start = settingsData.event_start_time ? new Date(settingsData.event_start_time).getTime() : null;
+      const regEnd = settingsData.registration_end_time ? new Date(settingsData.registration_end_time).getTime() : null;
       const end = settingsData.event_end_time ? new Date(settingsData.event_end_time).getTime() : null;
 
       if (end && now > end) {
-        setEventHasEnded(true); // El evento ha terminado
-        setEventIsActive(false);
-      } else if (start && now > start) {
-        setEventIsActive(true); // El evento está en curso
-        setEventHasEnded(false);
+        setEventHasEnded(true);  // Bloqueo de flags
+        setEventIsActive(true);  // Bloqueo de equipos
+      } else if (regEnd && now > regEnd) {
+        setEventIsActive(true);  // Bloqueo de equipos (aunque aún no termine el CTF)
       }
-      // Si no ha empezado, ambos 'false' (estado por defecto)
     }
     // *** FIN DEL BLOQUE MEJORADO ***
 
@@ -344,7 +342,7 @@ export default function DashboardPage() {
 
         {/* Columna del Temporizador */}
         <div className="lg:col-span-2">
-          <EventTimer />
+          <EventTimer variant="dashboard" /> {/* <-- variante crucial */}
         </div>
 
         {/* Columna de Tu Información */}
@@ -380,7 +378,7 @@ export default function DashboardPage() {
                 <button
                   onClick={handleLeaveTeam}
                   className="bg-red-900 text-red-100 border border-red-700 h-10 px-4 rounded font-semibold uppercase tracking-wider text-xs transition-all duration-200 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={eventIsActive || eventHasEnded} // <-- AÑADE ESTA LÍNEA
+                  disabled={eventIsActive || eventHasEnded}
                 >
                   Abandonar Equipo
                 </button>
@@ -509,7 +507,7 @@ export default function DashboardPage() {
                   <button
                     type="submit"
                     className="w-full h-14 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded transition-all duration-200 ease-out hover:bg-[#00D136] hover:-translate-y-0.5 disabled:opacity-50"
-                    disabled={isCreatingTeam || !newTeamName.trim() || eventIsActive || eventHasEnded} // <-- ACTUALIZA ESTA LÍNEA
+                    disabled={isCreatingTeam || !newTeamName.trim() || eventIsActive || eventHasEnded}
                   >
                     {isCreatingTeam ? 'CREANDO...' : 'CREAR EQUIPO'}
                   </button>
@@ -525,7 +523,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => handleJoinTeam(team.id)}
                         className="bg-[#2A2A2A] text-[#E4E4E7] border border-[#2A2A2A] h-10 px-6 rounded font-semibold uppercase tracking-wider text-xs transition-all duration-200 hover:bg-[#3A3A3A] disabled:opacity-50"
-                        disabled={isJoiningTeam === team.id || eventIsActive || eventHasEnded} // <-- ACTUALIZA ESTA LÍNEA
+                        disabled={isJoiningTeam === team.id || eventIsActive || eventHasEnded}
                       >
                         {isJoiningTeam === team.id ? 'UNIENDO...' : 'UNIRSE'}
                       </button>
