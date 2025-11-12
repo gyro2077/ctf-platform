@@ -5,80 +5,126 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient' 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-// --- NUEVA IMPORTACIÓN ---
 import { departments, careersByDepartment } from '@/lib/departments'
+import { 
+  validateEcuadorianID, 
+  validateEspeEmail, 
+  validateName, 
+  validateStudentIdDigits 
+} from '@/lib/validation'
 
+// --- INICIO: COMPONENTES Y TIPOS MOVIDOS AFUERA ---
+
+// Tipo para el objeto de errores
+type FormErrors = {
+  fullName?: string;
+  email?: string;
+  nationalId?: string;
+  studentIdNumbers?: string;
+  department?: string;
+  career?: string;
+  password?: string;
+  form?: string; // Para errores generales del servidor
+}
+
+// Componente Select (AHORA ESTÁ AFUERA)
+const SelectInput = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
+  <select
+    {...props}
+    className={`w-full h-14 px-4 bg-[#1A1A1A] border ${props['aria-invalid'] ? 'border-red-500' : 'border-[#2A2A2A]'} rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] disabled:opacity-50`}
+  >
+    {props.children}
+  </select>
+)
+
+// Componente Input (AHORA ESTÁ AFUERA)
+const TextInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+   <input
+    {...props}
+    className={`w-full h-14 px-4 bg-[#1A1A1A] border ${props['aria-invalid'] ? 'border-red-500' : 'border-[#2A2A2A]'} rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41]`}
+  />
+)
+
+// --- FIN: COMPONENTES Y TIPOS MOVIDOS AFUERA ---
+
+
+// --- COMPONENTE PRINCIPAL DE LA PÁGINA ---
 export default function SignUpPage() {
-  // Estados para cada campo del formulario
+  // Estados del formulario
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [nationalId, setNationalId] = useState('')
-  const [studentId, setStudentId] = useState('')
-  const [department, setDepartment] = useState('') // Sigue siendo un string
-  const [career, setCareer] = useState('')       // Sigue siendo un string
+  const [studentIdNumbers, setStudentIdNumbers] = useState('') // Solo los 7 dígitos
+  const [department, setDepartment] = useState('')
+  const [career, setCareer] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   
-  // --- NUEVO ESTADO PARA LAS CARRERAS FILTRADAS ---
   const [availableCareers, setAvailableCareers] = useState<string[]>([])
+  const [errors, setErrors] = useState<FormErrors>({})
   
-  // Estados para UI
+  // Estados de UI
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-
-  // Estados para ajustes del evento
   const [checkingSettings, setCheckingSettings] = useState(true)
   const [registrationsOpen, setRegistrationsOpen] = useState(false)
 
   const router = useRouter()
 
+  // Carga de ajustes del evento (sin cambios)
   useEffect(() => {
     const fetchEventSettings = async () => {
-      // ... (esta función no cambia) ...
-      const { data, error } = await supabase
-        .from('event_settings')
-        .select('registrations_open')
-        .eq('id', 1)
-        .single()
-
-      if (data) {
-        setRegistrationsOpen(data.registrations_open)
-      } else {
-        console.error('Error al cargar ajustes del evento:', error)
-        setError('No se pudo cargar la configuración del evento. Intenta más tarde.')
-      }
+      const { data, error } = await supabase.from('event_settings').select('registrations_open').eq('id', 1).single()
+      if (data) setRegistrationsOpen(data.registrations_open)
+      else setErrors(prev => ({...prev, form: 'No se pudo cargar la configuración del evento.'}))
       setCheckingSettings(false)
     }
-
     fetchEventSettings()
   }, [])
 
-  // --- NUEVA FUNCIÓN: HANDLER DE DEPENDENCIA ---
+  // Handler de Departamento (sin cambios)
   const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newDepartment = e.target.value;
     setDepartment(newDepartment);
-    
-    // Actualiza la lista de carreras disponibles
     setAvailableCareers(careersByDepartment[newDepartment] || []);
-    
-    // Resetea la carrera seleccionada
     setCareer('');
   }
 
-  // Función de registro (¡NO CAMBIA!)
-  // Sigue funcionando porque 'department' y 'career' son estados de string
+  // Función de validación (sin cambios)
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {}
+    if (!validateName(fullName)) {
+      newErrors.fullName = 'Ingresa un nombre válido (solo letras y espacios).'
+    }
+    if (!validateEspeEmail(email)) {
+      newErrors.email = 'Debe ser un correo válido del dominio @espe.edu.ec'
+    }
+    if (!validateEcuadorianID(nationalId)) {
+      newErrors.nationalId = 'Ingresa un número de cédula ecuatoriana válido (10 dígitos).'
+    }
+    if (!validateStudentIdDigits(studentIdNumbers)) {
+      newErrors.studentIdNumbers = 'Ingresa los 7 dígitos numéricos de tu ID.'
+    }
+    if (!department) newErrors.department = 'Debes seleccionar un departamento.'
+    if (!career) newErrors.career = 'Debes seleccionar una carrera.'
+    if (password.length < 6) {
+      newErrors.password = 'La contraseña debe tener al menos 6 caracteres.'
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }
+
+  // Función handleSignUp (sin cambios)
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
-    // ... (esta función es idéntica a la anterior) ...
     e.preventDefault()
-    
+    if (!validateForm()) return
     if (!registrationsOpen) {
-      setError('Los registros están cerrados.')
+      setErrors({ form: 'Los registros están cerrados.' })
       return
     }
-
     setLoading(true)
-    setError(null)
+    setErrors({})
+    const fullStudentId = `L00${studentIdNumbers}`
 
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -89,47 +135,47 @@ export default function SignUpPage() {
             full_name: fullName,
             institutional_email: email,
             national_id: nationalId,
-            student_id: studentId,
-            department: department, // Envía el string del departamento
-            career: career,         // Envía el string de la carrera
+            student_id: fullStudentId,
+            department: department,
+            career: career,
             phone_number: phoneNumber,
           }
         }
       })
-
       if (authError) throw authError
       if (!authData.user) throw new Error('No se pudo crear el usuario.')
-
       setLoading(false)
       setSuccess(true)
-
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Ocurrió un error inesperado.')
       setLoading(false)
+      if (err.code === '23505' || err.message?.includes('duplicate key')) {
+        if (err.message?.includes('profiles_institutional_email_key')) {
+          setErrors({ email: 'Este correo institucional ya está registrado.' })
+        } else if (err.message?.includes('profiles_national_id_key')) {
+          setErrors({ nationalId: 'Este número de cédula ya está registrado.' })
+        } else if (err.message?.includes('profiles_student_id_key')) {
+          setErrors({ studentIdNumbers: 'Este ID de estudiante ya está registrado.' })
+        } else {
+          setErrors({ form: 'Este valor ya está registrado.' })
+        }
+      } else {
+        setErrors({ form: err.message || 'Ocurrió un error inesperado.' })
+      }
     }
   }
 
-  // Estado de carga inicial
+  // --- RENDERIZADO (JSX) ---
+
   if (checkingSettings) {
     return (
       <div className="min-h-screen bg-[#0A0A0A] text-[#E4E4E7] flex items-center justify-center p-4">
-        <p className="text-2xl text-[#00FF41]">Cargando...</p>
+        <p className="text-2xl text-[#0A0A0A]">Cargando...</p>
       </div>
     )
   }
-
-  // --- COMPONENTE SELECT (REUTILIZABLE) ---
-  // He movido el estilo del <select> a un componente para no repetir código
-  const SelectInput = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
-    <select
-      {...props}
-      className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41] disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {props.children}
-    </select>
-  )
-
+  
+  // ¡LOS COMPONENTES TextInput y SelectInput YA NO ESTÁN AQUÍ!
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-[#E4E4E7] flex items-center justify-center p-4">
@@ -147,18 +193,11 @@ export default function SignUpPage() {
         <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-8 md:p-12">
           
           {!registrationsOpen ? (
+            // ... (Vista de registros cerrados - sin cambios)
             <div className="text-center">
-              {/* ... (vista de registros cerrados, sin cambios) ... */}
-              <h2 className="text-2xl font-bold text-[#FF4500] mb-4">
-                Registros Cerrados
-              </h2>
-              <p className="text-[#E4E4E7] mb-6">
-                El período de registro para este evento ha finalizado.
-              </p>
-              <Link 
-                href="/login" 
-                className="text-[#00FF41] hover:underline text-lg"
-              >
+              <h2 className="text-2xl font-bold text-[#FF4500] mb-4">Registros Cerrados</h2>
+              <p className="text-[#E4E4E7] mb-6">El período de registro ha finalizado.</p>
+              <Link href="/login" className="text-[#00FF41] hover:underline text-lg">
                 ¿Ya tienes una cuenta? Inicia sesión aquí
               </Link>
             </div>
@@ -167,137 +206,131 @@ export default function SignUpPage() {
               {!success ? (
                 <form onSubmit={handleSignUp}>
                   
-                  {error && (
+                  {errors.form && (
                     <div className="bg-red-900 border border-red-500 text-red-100 px-4 py-3 rounded-md mb-6">
-                      <p>{error}</p>
+                      <p>{errors.form}</p>
                     </div>
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     
-                    {/* Campos de texto (sin cambios) */}
+                    {/* Nombre completo */}
                     <div className="form-group mb-2">
-                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="fullName">
-                        Nombre completo *
-                      </label>
-                      <input
-                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="fullName">Nombre completo *</label>
+                      <TextInput
                         type="text" id="fullName" value={fullName}
                         onChange={(e) => setFullName(e.target.value)} required
+                        aria-invalid={!!errors.fullName}
                       />
+                      {errors.fullName && <p className="text-red-500 text-xs mt-1">{errors.fullName}</p>}
                     </div>
+
+                    {/* Correo institucional */}
                     <div className="form-group mb-2">
-                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="email">
-                        Correo institucional *
-                      </label>
-                      <input
-                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="email">Correo institucional *</label>
+                      <TextInput
                         type="email" id="email" value={email}
                         onChange={(e) => setEmail(e.target.value)} required
+                        aria-invalid={!!errors.email}
                       />
+                      {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                     </div>
-                    <div className="form-group mb-2">
-                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="nationalId">
-                        Número de Cédula *
-                      </label>
-                      <input
-                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                        type="text" id="nationalId" value={nationalId}
-                        onChange={(e) => setNationalId(e.target.value)} required
-                      />
-                    </div>
-                    <div className="form-group mb-2">
-                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="studentId">
-                        ID de Estudiante (L00...) *
-                      </label>
-                      <input
-                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
-                        type="text" id="studentId" value={studentId}
-                        onChange={(e) => setStudentId(e.target.value)} required
-                      />
-                    </div>
-                    {/* --- FIN CAMPOS DE TEXTO --- */}
 
-                    {/* --- INICIO: NUEVOS SELECTS --- */}
+                    {/* Número de Cédula */}
                     <div className="form-group mb-2">
-                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="department">
-                        Departamento *
-                      </label>
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="nationalId">Número de Cédula *</label>
+                      <TextInput
+                        type="tel" id="nationalId" value={nationalId}
+                        onChange={(e) => setNationalId(e.target.value.replace(/\D/g, ''))} // Solo permite números
+                        maxLength={10} required
+                        aria-invalid={!!errors.nationalId}
+                      />
+                      {errors.nationalId && <p className="text-red-500 text-xs mt-1">{errors.nationalId}</p>}
+                    </div>
+
+                    {/* ID de Estudiante (MODIFICADO) */}
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="studentIdNumbers">ID de Estudiante (7 dígitos) *</label>
+                      <div className="flex items-center">
+                        <span className="h-14 px-4 flex items-center bg-[#2A2A2A] border border-[#2A2A2A] rounded-l text-[#888888]">
+                          L00
+                        </span>
+                        <TextInput
+                          type="tel" id="studentIdNumbers" value={studentIdNumbers}
+                          onChange={(e) => setStudentIdNumbers(e.target.value.replace(/\D/g, ''))} // Solo números
+                          maxLength={7} required
+                          aria-invalid={!!errors.studentIdNumbers}
+                          className="w-full h-14 px-4 bg-[#1A1A1A] border-t border-r border-b border-[#2A2A2A] rounded-r text-[#E4E4E7] focus:outline-none focus:border-[#00FF41]"
+                        />
+                      </div>
+                      {errors.studentIdNumbers && <p className="text-red-500 text-xs mt-1">{errors.studentIdNumbers}</p>}
+                    </div>
+
+                    {/* Departamento */}
+                    <div className="form-group mb-2">
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="department">Departamento *</label>
                       <SelectInput
-                        id="department"
-                        value={department}
-                        onChange={handleDepartmentChange}
-                        required
+                        id="department" value={department}
+                        onChange={handleDepartmentChange} required
+                        aria-invalid={!!errors.department}
                       >
                         <option value="" disabled>Selecciona tu departamento...</option>
-                        {departments.map(dept => (
-                          <option key={dept} value={dept}>{dept}</option>
-                        ))}
+                        {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
                       </SelectInput>
+                      {errors.department && <p className="text-red-500 text-xs mt-1">{errors.department}</p>}
                     </div>
                     
+                    {/* Carrera */}
                     <div className="form-group mb-2">
-                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="career">
-                        Carrera *
-                      </label>
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="career">Carrera *</label>
                       <SelectInput
-                        id="career"
-                        value={career}
+                        id="career" value={career}
                         onChange={(e) => setCareer(e.target.value)}
-                        required
-                        disabled={!department} // Deshabilitado hasta que se elija un departamento
+                        required disabled={!department}
+                        aria-invalid={!!errors.career}
                       >
                         <option value="" disabled>Selecciona tu carrera...</option>
-                        {availableCareers.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
+                        {availableCareers.map(c => <option key={c} value={c}>{c}</option>)}
                       </SelectInput>
+                      {errors.career && <p className="text-red-500 text-xs mt-1">{errors.career}</p>}
                     </div>
-                    {/* --- FIN: NUEVOS SELECTS --- */}
 
+                    {/* Teléfono (Opcional) */}
                     <div className="form-group mb-2">
-                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="phoneNumber">
-                        Número de Teléfono
-                      </label>
-                      <input
-                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="phoneNumber">Número de Teléfono</label>
+                      <TextInput
                         type="tel" id="phoneNumber" value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                        maxLength={10}
                       />
                     </div>
 
+                    {/* Contraseña */}
                     <div className="form-group mb-2">
-                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="password">
-                        Contraseña *
-                      </label>
-                      <input
-                        className="w-full h-14 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] focus:ring-1 focus:ring-[#00FF41]"
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="password">Contraseña *</label>
+                      <TextInput
                         type="password" id="password" value={password}
                         onChange={(e) => setPassword(e.target.value)} required
+                        aria-invalid={!!errors.password}
                       />
+                      {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
                     </div>
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full mt-6 h-14 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded transition-all duration-200 ease-out hover:bg-[#00D136] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full mt-6 h-14 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded disabled:opacity-50"
                     disabled={loading}
                   >
                     {loading ? 'CREANDO CUENTA...' : 'CREAR CUENTA'}
                   </button>
                 </form>
               ) : (
+                // ... (Vista de Éxito - sin cambios)
                 <div className="text-center">
-                  {/* ... (vista de éxito, con el texto corregido) ... */}
-                  <h2 className="text-2xl font-bold text-[#00FF41] mb-4">
-                    ¡Registro Exitoso!
-                  </h2>
-                  <p className="text-lg text-[#E4E4E7] mb-4">
-                    Te hemos enviado un correo de confirmación.
-                  </p>
-                  <p className="text-base text-[#888888] mb-6">
-                    Por favor, revisa tu bandeja de entrada (y spam) para activar tu cuenta.
-                  </p>
+                  <h2 className="text-2xl font-bold text-[#00FF41] mb-4">¡Registro Exitoso!</h2>
+                  <p className="text-lg text-[#E4E4E7] mb-4">Te hemos enviado un correo de confirmación.</p>
+                  <p className="text-base text-[#888888] mb-6">Por favor, revisa tu bandeja de entrada (y spam) para activar tu cuenta.</p>
                   <Link href="/login" className="text-[#00FF41] hover:underline">
                     Volver a Iniciar Sesión
                   </Link>
