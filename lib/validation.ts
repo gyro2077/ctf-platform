@@ -10,29 +10,28 @@ export function validateEcuadorianID(cedula: string): boolean {
     return false;
   }
 
-  const provincia = parseInt(cedula.substring(0, 2));
+  // Validación de provincia (01–24)
+  const provincia = parseInt(cedula.substring(0, 2), 10);
   if (provincia < 1 || provincia > 24) {
     return false;
   }
 
+  // Módulo 10
   const digitos = cedula.split('').map(Number);
-  const digitoVerificador = digitos.pop(); // Extraemos el último dígito
+  const digitoVerificador = digitos.pop()!; // último dígito
 
   let suma = 0;
-
   for (let i = 0; i < digitos.length; i++) {
     let valor = digitos[i];
-    if (i % 2 === 0) { // Posiciones pares (0, 2, 4, 6, 8)
+    // posiciones 0,2,4,6,8 (pares 1-based) se multiplican por 2
+    if (i % 2 === 0) {
       valor *= 2;
-      if (valor > 9) {
-        valor -= 9;
-      }
+      if (valor > 9) valor -= 9;
     }
     suma += valor;
   }
 
   const verificadorCalculado = (Math.ceil(suma / 10) * 10) - suma;
-
   return (verificadorCalculado === 10 ? 0 : verificadorCalculado) === digitoVerificador;
 }
 

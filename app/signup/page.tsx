@@ -1,17 +1,17 @@
-// app/signup/page.tsx
-'use client' 
+'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabaseClient' 
+import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { departments, careersByDepartment } from '@/lib/departments'
-import { 
-  validateEcuadorianID, 
-  validateEspeEmail, 
-  validateName, 
-  validateStudentIdDigits 
+import {
+  validateEcuadorianID,
+  validateEspeEmail,
+  validateName,
+  validateStudentIdDigits
 } from '@/lib/validation'
+import DataPrivacyModal from '@/components/DataPrivacyModal' // <-- AÑADIDO
 
 // --- INICIO: COMPONENTES Y TIPOS MOVIDOS AFUERA ---
 
@@ -39,7 +39,7 @@ const SelectInput = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
 
 // Componente Input (AHORA ESTÁ AFUERA)
 const TextInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-   <input
+  <input
     {...props}
     className={`w-full h-14 px-4 bg-[#1A1A1A] border ${props['aria-invalid'] ? 'border-red-500' : 'border-[#2A2A2A]'} rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41]`}
   />
@@ -59,24 +59,30 @@ export default function SignUpPage() {
   const [department, setDepartment] = useState('')
   const [career, setCareer] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
-  
+
   const [availableCareers, setAvailableCareers] = useState<string[]>([])
   const [errors, setErrors] = useState<FormErrors>({})
-  
+
   // Estados de UI
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [checkingSettings, setCheckingSettings] = useState(true)
   const [registrationsOpen, setRegistrationsOpen] = useState(false)
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false) // <-- AÑADIDO
+  const [hasAcceptedPrivacy, setHasAcceptedPrivacy] = useState(false) // <-- AÑADIDO
 
   const router = useRouter()
 
   // Carga de ajustes del evento (sin cambios)
   useEffect(() => {
     const fetchEventSettings = async () => {
-      const { data, error } = await supabase.from('event_settings').select('registrations_open').eq('id', 1).single()
+      const { data, error } = await supabase
+        .from('event_settings')
+        .select('registrations_open')
+        .eq('id', 1)
+        .single()
       if (data) setRegistrationsOpen(data.registrations_open)
-      else setErrors(prev => ({...prev, form: 'No se pudo cargar la configuración del evento.'}))
+      else setErrors((prev) => ({ ...prev, form: 'No se pudo cargar la configuración del evento.' }))
       setCheckingSettings(false)
     }
     fetchEventSettings()
@@ -120,6 +126,10 @@ export default function SignUpPage() {
     if (!validateForm()) return
     if (!registrationsOpen) {
       setErrors({ form: 'Los registros están cerrados.' })
+      return
+    }
+    if (!hasAcceptedPrivacy) {
+      setErrors({ form: 'Debes aceptar la Política de Privacidad para continuar.' })
       return
     }
     setLoading(true)
@@ -170,17 +180,15 @@ export default function SignUpPage() {
   if (checkingSettings) {
     return (
       <div className="min-h-screen bg-[#0A0A0A] text-[#E4E4E7] flex items-center justify-center p-4">
-        <p className="text-2xl text-[#0A0A0A]">Cargando...</p>
+        <p className="text-2xl text-[#E4E4E7]">Cargando...</p>
       </div>
     )
   }
-  
-  // ¡LOS COMPONENTES TextInput y SelectInput YA NO ESTÁN AQUÍ!
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-[#E4E4E7] flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
-        
+
         <header className="text-center mb-8">
           <h1 className="text-4xl font-bold text-[#00FF41] tracking-[4px] text-shadow-[0_0_12px_rgba(0,255,65,0.5)]">
             PROJECT OVERDRIVE
@@ -191,7 +199,7 @@ export default function SignUpPage() {
         </header>
 
         <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-8 md:p-12">
-          
+
           {!registrationsOpen ? (
             // ... (Vista de registros cerrados - sin cambios)
             <div className="text-center">
@@ -205,7 +213,7 @@ export default function SignUpPage() {
             <>
               {!success ? (
                 <form onSubmit={handleSignUp}>
-                  
+
                   {errors.form && (
                     <div className="bg-red-900 border border-red-500 text-red-100 px-4 py-3 rounded-md mb-6">
                       <p>{errors.form}</p>
@@ -213,7 +221,7 @@ export default function SignUpPage() {
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                    
+
                     {/* Nombre completo */}
                     <div className="form-group mb-2">
                       <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="fullName">Nombre completo *</label>
@@ -275,11 +283,13 @@ export default function SignUpPage() {
                         aria-invalid={!!errors.department}
                       >
                         <option value="" disabled>Selecciona tu departamento...</option>
-                        {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+                        {departments.map((dept) => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
                       </SelectInput>
                       {errors.department && <p className="text-red-500 text-xs mt-1">{errors.department}</p>}
                     </div>
-                    
+
                     {/* Carrera */}
                     <div className="form-group mb-2">
                       <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="career">Carrera *</label>
@@ -290,7 +300,9 @@ export default function SignUpPage() {
                         aria-invalid={!!errors.career}
                       >
                         <option value="" disabled>Selecciona tu carrera...</option>
-                        {availableCareers.map(c => <option key={c} value={c}>{c}</option>)}
+                        {availableCareers.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
                       </SelectInput>
                       {errors.career && <p className="text-red-500 text-xs mt-1">{errors.career}</p>}
                     </div>
@@ -317,10 +329,42 @@ export default function SignUpPage() {
                     </div>
                   </div>
 
+                  {/* --- INICIO: CHECKBOX DE PRIVACIDAD --- */}
+                  <div className="form-group mt-6">
+                    <div className="flex items-center">
+                      <input
+                        id="privacy-checkbox"
+                        type="checkbox"
+                        className="h-5 w-5 rounded text-[#00FF41] bg-[#2A2A2A] border-[#888888] focus:ring-[#00FF41]"
+                        checked={hasAcceptedPrivacy}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            // Si marca, mostrar modal. Si desmarca, simplemente desmarcar.
+                            setShowPrivacyModal(true);
+                          } else {
+                            setHasAcceptedPrivacy(false);
+                          }
+                        }}
+                      />
+                      <label htmlFor="privacy-checkbox" className="ml-3 text-sm text-[#E4E4E7]">
+                        He leído y acepto la{' '}
+                        <button
+                          type="button"
+                          className="text-[#00FF41] hover:underline font-semibold"
+                          onClick={() => setShowPrivacyModal(true)} // Muestra el modal al hacer clic en el enlace
+                        >
+                          Política de Privacidad de Datos
+                        </button>
+                        . *
+                      </label>
+                    </div>
+                  </div>
+                  {/* --- FIN: CHECKBOX DE PRIVACIDAD --- */}
+
                   <button
                     type="submit"
                     className="w-full mt-6 h-14 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded disabled:opacity-50"
-                    disabled={loading}
+                    disabled={loading || !hasAcceptedPrivacy} // <-- ACTUALIZADO
                   >
                     {loading ? 'CREANDO CUENTA...' : 'CREAR CUENTA'}
                   </button>
@@ -336,6 +380,18 @@ export default function SignUpPage() {
                   </Link>
                 </div>
               )}
+
+              {/* --- INICIO: RENDERIZAR EL MODAL --- */}
+              {showPrivacyModal && (
+                <DataPrivacyModal
+                  onAccept={() => {
+                    setHasAcceptedPrivacy(true);
+                    setShowPrivacyModal(false);
+                  }}
+                  onClose={() => setShowPrivacyModal(false)}
+                />
+              )}
+              {/* --- FIN: RENDERIZAR EL MODAL --- */}
             </>
           )}
         </div>
