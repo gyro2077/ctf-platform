@@ -386,17 +386,21 @@ export default function DashboardPage() {
 
               <h3 className="text-lg text-[#E4E4E7] font-semibold mb-3">Miembros</h3>
               <ul className="space-y-3">
-                {teamMembers.map(member => (
-                  <li key={member.profiles.id} className="flex items-center bg-[#1A1A1A] p-3 rounded-md">
-                    <div className="w-8 h-8 rounded-full bg-[#00FF41] text-[#0A0A0A] flex items-center justify-center font-bold text-sm mr-3">
-                      {member.profiles.full_name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-base text-[#E4E4E7]">{member.profiles.full_name}</p>
-                      <p className="text-xs text-[#888888]">{member.profiles.student_id}</p>
-                    </div>
-                  </li>
-                ))}
+                {teamMembers.map(member => {
+                  const p = member.profiles;
+
+                  return (
+                    <li key={p?.id || Math.random()} className="flex items-center bg-[#1A1A1A] p-3 rounded-md">
+                      <div className="w-8 h-8 rounded-full bg-[#00FF41] text-[#0A0A0A] flex items-center justify-center font-bold text-sm mr-3">
+                        {(p?.full_name?.charAt(0).toUpperCase()) || "?"}
+                      </div>
+                      <div>
+                        <p className="text-base text-[#E4E4E7]">{p?.full_name ?? "Usuario sin nombre"}</p>
+                        <p className="text-xs text-[#888888]">{p?.student_id ?? "N/D"}</p>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
