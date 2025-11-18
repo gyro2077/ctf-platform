@@ -52,9 +52,9 @@ export function validateName(name: string): boolean {
 }
 
 /**
- * Valida que el ID de estudiante tenga 7 dígitos numéricos.
+ * Valida que el ID de estudiante tenga entre 6 y 8 dígitos numéricos.
  */
 export function validateStudentIdDigits(digits: string): boolean {
-  const idRegex = /^\d{7}$/;
+  const idRegex = /^\d{6,8}$/;
   return idRegex.test(digits);
 }
