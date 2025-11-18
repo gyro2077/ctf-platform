@@ -258,18 +258,18 @@ export default function SignUpPage() {
 
                     {/* ID de Estudiante (MODIFICADO) */}
                     <div className="form-group mb-2">
-                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="studentIdNumbers">ID de Estudiante (7 dígitos) *</label>
+                      <label className="block mb-2 text-sm text-[#888888] tracking-wide" htmlFor="studentIdNumbers">ID de Estudiante (máx. 7 dígitos)</label>
                       <div className="flex items-center">
-                        <span className="h-14 px-4 flex items-center bg-[#2A2A2A] border border-[#2A2A2A] rounded-l text-[#888888]">
-                          L00
-                        </span>
-                        <TextInput
-                          type="tel" id="studentIdNumbers" value={studentIdNumbers}
-                          onChange={(e) => setStudentIdNumbers(e.target.value.replace(/\D/g, ''))} // Solo números
-                          maxLength={7} required
-                          aria-invalid={!!errors.studentIdNumbers}
-                          className="w-full h-14 px-4 bg-[#1A1A1A] border-t border-r border-b border-[#2A2A2A] rounded-r text-[#E4E4E7] focus:outline-none focus:border-[#00FF41]"
-                        />
+                      <span className="h-14 px-4 flex items-center bg-[#2A2A2A] border border-[#2A2A2A] rounded-l text-[#888888]">
+                        L00
+                      </span>
+                      <TextInput
+                        type="tel" id="studentIdNumbers" value={studentIdNumbers}
+                        onChange={(e) => setStudentIdNumbers(e.target.value.replace(/\D/g, '').slice(0, 7))} // Solo números, máximo 7
+                        maxLength={7}
+                        aria-invalid={!!errors.studentIdNumbers}
+                        className="w-full h-14 px-4 bg-[#1A1A1A] border-t border-r border-b border-[#2A2A2A] rounded-r text-[#E4E4E7] focus:outline-none focus:border-[#00FF41]"
+                      />
                       </div>
                       {errors.studentIdNumbers && <p className="text-red-500 text-xs mt-1">{errors.studentIdNumbers}</p>}
                     </div>
