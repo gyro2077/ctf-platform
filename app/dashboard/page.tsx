@@ -69,6 +69,7 @@ export default function DashboardPage() {
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null) // ID del desafío que se está enviando
   const [teamRank, setTeamRank] = useState<number | null>(null)
   const [eventHasEnded, setEventHasEnded] = useState(false)
+  const [eventHasStarted, setEventHasStarted] = useState(false)
   const [eventIsActive, setEventIsActive] = useState(false)
 
   // --- FUNCIÓN PRINCIPAL DE CARGA DE DATOS ---
@@ -84,20 +85,27 @@ export default function DashboardPage() {
     // *** NUEVO: Cargar ajustes del evento (LÓGICA MEJORADA) ***
     const { data: settingsData } = await supabase
       .from('event_settings')
-      .select('registration_end_time, event_end_time') // <-- Pedimos la nueva fecha
+      .select('registration_end_time, event_start_time, event_end_time')
       .eq('id', 1)
       .single();
 
     if (settingsData) {
       const now = new Date().getTime();
       const regEnd = settingsData.registration_end_time ? new Date(settingsData.registration_end_time).getTime() : null;
+      const start = settingsData.event_start_time ? new Date(settingsData.event_start_time).getTime() : null;
       const end = settingsData.event_end_time ? new Date(settingsData.event_end_time).getTime() : null;
 
+      // Verificar si el evento ha comenzado
+      if (start && now >= start) {
+        setEventHasStarted(true);
+      }
+
+      // Verificar si el evento ha terminado
       if (end && now > end) {
-        setEventHasEnded(true);  // Bloqueo de flags
-        setEventIsActive(true);  // Bloqueo de equipos
+        setEventHasEnded(true);
+        setEventIsActive(true);
       } else if (regEnd && now > regEnd) {
-        setEventIsActive(true);  // Bloqueo de equipos (aunque aún no termine el CTF)
+        setEventIsActive(true);
       }
     }
     // *** FIN DEL BLOQUE MEJORADO ***
@@ -289,15 +297,24 @@ export default function DashboardPage() {
     const checkEventStatus = async () => {
       const { data: settingsData } = await supabase
         .from('event_settings')
-        .select('registration_end_time, event_end_time')
+        .select('registration_end_time, event_start_time, event_end_time')
         .eq('id', 1)
         .single();
 
       if (settingsData) {
         const now = new Date().getTime();
         const regEnd = settingsData.registration_end_time ? new Date(settingsData.registration_end_time).getTime() : null;
+        const start = settingsData.event_start_time ? new Date(settingsData.event_start_time).getTime() : null;
         const end = settingsData.event_end_time ? new Date(settingsData.event_end_time).getTime() : null;
 
+        // Verificar si el evento ha comenzado
+        if (start && now >= start) {
+          setEventHasStarted(true);
+        } else {
+          setEventHasStarted(false);
+        }
+
+        // Verificar si el evento ha terminado
         if (end && now > end) {
           setEventHasEnded(true);
           setEventIsActive(true);
@@ -477,10 +494,16 @@ export default function DashboardPage() {
 
                       {/* Formulario de Flag o Mensaje de Fin */}
                       {!isSolved ? (
-                        eventHasEnded ? (
-                          // Si no está resuelto Y el evento ha terminado
+                        !eventHasStarted ? (
+                          // Si no está resuelto Y el evento NO HA COMENZADO
                           <div className="mt-auto text-center p-4">
-                            <p className="font-bold text-lg text-[#FF4500]">TIEMPO TERMINADO</p>
+                            <p className="font-bold text-lg text-[#FFA500]">⏳ EVENTO NO INICIADO</p>
+                            <p className="text-xs text-[#888888]">El CTF aún no ha comenzado.</p>
+                          </div>
+                        ) : eventHasEnded ? (
+                          // Si no está resuelto Y el evento HA TERMINADO
+                          <div className="mt-auto text-center p-4">
+                            <p className="font-bold text-lg text-[#FF4500]">🏁 TIEMPO TERMINADO</p>
                             <p className="text-xs text-[#888888]">El evento ha finalizado.</p>
                           </div>
                         ) : (
