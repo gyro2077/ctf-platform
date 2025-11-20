@@ -46,7 +46,7 @@ type Challenge = {
 // --- ESTADOS ---
 export default function DashboardPage() {
   const router = useRouter()
-  
+
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -74,7 +74,7 @@ export default function DashboardPage() {
   // --- FUNCIÓN PRINCIPAL DE CARGA DE DATOS ---
   const checkSessionAndFetchData = async () => {
     setLoading(true)
-    
+
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     if (sessionError || !session) {
       router.push('/login'); return
@@ -125,7 +125,7 @@ export default function DashboardPage() {
     if (teamMembership) {
       // SÍ ESTÁ EN UN EQUIPO
       const teamId = teamMembership.team_id
-      
+
       const { data: teamData } = await supabase
         .from('teams').select('id, name, creator_id').eq('id', teamId).single()
       if (teamData) setCurrentTeam(teamData)
@@ -133,7 +133,7 @@ export default function DashboardPage() {
       const { data: membersData } = await supabase
         .from('team_members').select(`joined_at, profiles ( id, full_name, student_id )`).eq('team_id', teamId)
       if (membersData) setTeamMembers(membersData as unknown as TeamMember[])
-      
+
       // *** NUEVO: Cargar desafíos ya que tenemos un equipo ***
       await fetchChallengesAndSubmissions(teamId)
 
@@ -157,7 +157,7 @@ export default function DashboardPage() {
       setCurrentTeam(null)
       setTeamMembers([])
       setChallenges([]) // Limpiar desafíos si no hay equipo
-      
+
       const { data: availableTeamsData } = await supabase
         .from('teams').select('id, name, creator_id')
       if (availableTeamsData) setAvailableTeams(availableTeamsData)
@@ -181,7 +181,7 @@ export default function DashboardPage() {
       .select('challenge_id')
       .eq('team_id', teamId)
       .eq('is_correct', true)
-    
+
     if (submissionsError) console.error('Error al cargar envíos:', submissionsError)
     if (submissionsData) {
       // Crear un 'Set' (conjunto) con los IDs de los desafíos ya resueltos
@@ -284,6 +284,36 @@ export default function DashboardPage() {
     setIsSubmitting(null)
   }
 
+  // --- EFECTO PARA VERIFICAR EL ESTADO DEL EVENTO EN TIEMPO REAL ---
+  useEffect(() => {
+    const checkEventStatus = async () => {
+      const { data: settingsData } = await supabase
+        .from('event_settings')
+        .select('registration_end_time, event_end_time')
+        .eq('id', 1)
+        .single();
+
+      if (settingsData) {
+        const now = new Date().getTime();
+        const regEnd = settingsData.registration_end_time ? new Date(settingsData.registration_end_time).getTime() : null;
+        const end = settingsData.event_end_time ? new Date(settingsData.event_end_time).getTime() : null;
+
+        if (end && now > end) {
+          setEventHasEnded(true);
+          setEventIsActive(true);
+        } else if (regEnd && now > regEnd) {
+          setEventIsActive(true);
+        }
+      }
+    };
+
+    // Verificar cada segundo
+    const statusInterval = setInterval(checkEventStatus, 1000);
+
+    // Limpieza
+    return () => clearInterval(statusInterval);
+  }, []);
+
   // --- EFECTO INICIAL ---
   useEffect(() => {
     checkSessionAndFetchData()
@@ -313,27 +343,27 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-[#E4E4E7] p-8">
-      
+
       <header className="max-w-6xl mx-auto mb-12 flex justify-between items-center">
         <div className="text-left">
-            <h1 className="text-3xl font-bold text-[#00FF41] tracking-[4px]">
+          <h1 className="text-3xl font-bold text-[#00FF41] tracking-[4px]">
             BIENVENIDO, {profile?.full_name || user?.email}
-            </h1>
-            <p className="text-lg text-[#888888] font-light">
+          </h1>
+          <p className="text-lg text-[#888888] font-light">
             Panel de control
-            </p>
+          </p>
         </div>
 
         {/* Contenedor para botones de admin y logout */}
         <div className="flex items-center gap-4">
-            {profile?.is_admin && (
+          {profile?.is_admin && (
             <a href="/admin" className="text-[#00FF41] hover:underline font-semibold uppercase tracking-wider">
-                Admin
+              Admin
             </a>
-            )}
-            <LogoutButton />
+          )}
+          <LogoutButton />
         </div>
-        </header>
+      </header>
 
       {/* ... (después del <header>) ... */}
 
@@ -365,7 +395,7 @@ export default function DashboardPage() {
 
       {/* --- SECCIÓN 2: LÓGICA DE EQUIPOS Y DESAFÍOS --- */}
       <div className="max-w-6xl mx-auto">
-        
+
         {currentTeam ? (
           // --- VISTA: SI YA TIENE EQUIPO (MUESTRA EQUIPO Y DESAFÍOS) ---
           <>
@@ -432,9 +462,9 @@ export default function DashboardPage() {
                       <div className="mb-4">
                         {renderDifficultyStars(challenge.difficulty)}
                       </div>
-                      
+
                       <p className="text-[#888888] text-sm mb-4 min-h-[40px] flex-grow">{challenge.description}</p>
-                      
+
                       {/* Hints (si existen) */}
                       {challenge.hints && challenge.hints.length > 0 && (
                         <div className="mb-4 text-xs text-[#888888]">
@@ -444,7 +474,7 @@ export default function DashboardPage() {
                           </ul>
                         </div>
                       )}
-                      
+
                       {/* Formulario de Flag o Mensaje de Fin */}
                       {!isSolved ? (
                         eventHasEnded ? (
@@ -457,8 +487,8 @@ export default function DashboardPage() {
                           // Si no está resuelto Y el evento está ACTIVO
                           <form className="mt-auto" onSubmit={(e) => handleFlagSubmit(e, challenge)}>
                             <div className="flex flex-col gap-2">
-                              <input 
-                                type="text" 
+                              <input
+                                type="text"
                                 placeholder="CTF{...}"
                                 className="w-full h-12 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] font-mono focus:outline-none focus:border-[#00FF41]"
                                 value={flagInputs[challenge.id] || ''}

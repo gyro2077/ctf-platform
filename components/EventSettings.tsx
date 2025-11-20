@@ -3,17 +3,19 @@
 
 import { supabase } from '@/lib/supabaseClient'
 import { useEffect, useState } from 'react'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 
 // Tipo para los ajustes
 type EventSettings = {
   id: 1;
-  registrations_open: boolean; // Mantenemos el switch manual por si acaso
+  registrations_open: boolean;
   registration_end_time: string | null;
   event_start_time: string | null;
   event_end_time: string | null;
 }
 
-// --- FUNCIONES HELPER DE TIMEZONE (Sin cambios) ---
+// --- FUNCIONES HELPER DE TIMEZONE ---
 const toLocalInputString = (utcString: string | null | undefined): string => {
   if (!utcString) return '';
   const d = new Date(utcString);
@@ -29,12 +31,45 @@ const toUTCISOString = (localString: string | null | undefined): string | null =
   if (!localString) return null;
   return new Date(localString).toISOString();
 }
+
+// Función para obtener la hora actual en formato datetime-local
+const getCurrentTimeString = (): string => {
+  return toLocalInputString(new Date().toISOString());
+}
+
+// Función para obtener una hora futura con offset en minutos
+const getOffsetTimeString = (offsetMinutes: number): string => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + offsetMinutes);
+  return toLocalInputString(now.toISOString());
+}
+
+// Convertir string datetime-local a Date object
+const stringToDate = (str: string | null | undefined): Date | null => {
+  if (!str) return null;
+  return new Date(str);
+}
+
+// Convertir Date object a string datetime-local
+const dateToString = (date: Date | null): string => {
+  if (!date) return '';
+  return toLocalInputString(date.toISOString());
+}
 // --- FIN DE FUNCIONES HELPER ---
 
 export default function EventSettings() {
   const [settings, setSettings] = useState<Partial<EventSettings>>({})
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
+  const [currentTime, setCurrentTime] = useState<string>(getCurrentTimeString())
+
+  // Actualizar la hora actual cada segundo
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(getCurrentTimeString())
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Cargar los ajustes actuales al inicio
   useEffect(() => {
@@ -83,97 +118,229 @@ export default function EventSettings() {
     setLoading(false)
   }
 
-  // Manejador de cambios (sin cambios)
+  // Manejador de cambios para checkbox
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target
+    const { name, type } = e.target
     if (type === 'checkbox') {
       setSettings(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }))
-    } else {
-      setSettings(prev => ({ ...prev, [name]: value === '' ? null : value }))
     }
+  }
+
+  // Manejador para DatePicker
+  const handleDateChange = (fieldName: keyof EventSettings, date: Date | null) => {
+    setSettings(prev => ({ ...prev, [fieldName]: dateToString(date) }))
+  }
+
+  // Función para establecer tiempo rápido
+  const setQuickTime = (fieldName: keyof EventSettings, offsetMinutes: number) => {
+    const timeString = getOffsetTimeString(offsetMinutes)
+    setSettings(prev => ({ ...prev, [fieldName]: timeString }))
   }
 
   if (loading && !settings.id) {
     return <p className="text-[#888888]">Cargando ajustes...</p>
   }
 
-  return (
-    <div className="max-w-6xl mx-auto bg-[#141414] border border-[#2A2A0A] rounded-lg p-8">
-      <h2 className="text-2xl text-[#00FF41] mb-6">Ajustes Generales del Evento</h2>
-      <form onSubmit={handleSaveSettings} className="max-w-md space-y-6">
+  // Componente para un campo de tiempo con botones rápidos y DatePicker
+  const TimeField = ({
+    name,
+    label,
+    value
+  }: {
+    name: keyof EventSettings;
+    label: string;
+    value: string | null | undefined;
+  }) => (
+    <div className="form-group bg-[#1A1A1A] p-5 rounded-lg">
+      <label className="block mb-3 text-base font-semibold text-[#E4E4E7]" htmlFor={name}>
+        {label}
+      </label>
 
-        <div className="flex items-center justify-between bg-[#1A1A1A] p-4 rounded-lg">
-          <label htmlFor="registrations_open" className="text-lg font-medium text-[#E4E4E7]">
-            Registros Abiertos (Manual)
-          </label>
-          <input
-            type="checkbox"
-            id="registrations_open"
-            name="registrations_open"
-            className="h-6 w-6 rounded text-[#00FF41] bg-[#2A2A2A] border-[#888888] focus:ring-[#00FF41]"
-            checked={settings.registrations_open || false}
-            onChange={handleChange}
-          />
-        </div>
+      {/* DatePicker Visual */}
+      <div className="mb-3">
+        <DatePicker
+          selected={stringToDate(value)}
+          onChange={(date) => handleDateChange(name, date)}
+          showTimeSelect
+          timeFormat="HH:mm"
+          timeIntervals={15}
+          dateFormat="MMMM d, yyyy h:mm aa"
+          className="w-full h-12 px-4 bg-[#0A0A0A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41] font-mono"
+          calendarClassName="dark-calendar"
+          timeCaption="Hora"
+          placeholderText="Selecciona fecha y hora"
+        />
+      </div>
 
-        {/* --- NUEVO INPUT --- */}
-        <div className="form-group">
-          <label className="block mb-1.5 text-sm text-[#888888] tracking-wide" htmlFor="registration_end_time">
-            Fin de Registros y Equipos (Tu Hora Local)
-          </label>
-          <input
-            className="w-full h-12 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41]"
-            type="datetime-local"
-            id="registration_end_time"
-            name="registration_end_time"
-            value={settings.registration_end_time || ''}
-            onChange={handleChange}
-          />
-        </div>
-        {/* --- FIN NUEVO INPUT --- */}
-
-        <div className="form-group">
-          <label className="block mb-1.5 text-sm text-[#888888] tracking-wide" htmlFor="event_start_time">
-            Hora de Inicio del CTF (Tu Hora Local)
-          </label>
-          <input
-            className="w-full h-12 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41]"
-            type="datetime-local"
-            id="event_start_time"
-            name="event_start_time"
-            value={settings.event_start_time || ''}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="block mb-1.5 text-sm text-[#888888] tracking-wide" htmlFor="event_end_time">
-            Hora de Fin del CTF (Tu Hora Local)
-          </label>
-          <input
-            className="w-full h-12 px-4 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#E4E4E7] focus:outline-none focus:border-[#00FF41]"
-            type="datetime-local"
-            id="event_end_time"
-            name="event_end_time"
-            value={settings.event_end_time || ''}
-            onChange={handleChange}
-          />
-        </div>
-
+      {/* Botones de acceso rápido */}
+      <div className="flex flex-wrap gap-2">
         <button
-          type="submit"
-          className="w-full h-14 mt-4 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded disabled:opacity-50"
-          disabled={loading}
+          type="button"
+          onClick={() => setQuickTime(name, 0)}
+          className="px-3 py-1.5 bg-[#2A2A2A] text-[#E4E4E7] rounded text-xs font-semibold hover:bg-[#3A3A3A] transition-colors"
         >
-          {loading ? 'GUARDANDO...' : 'GUARDAR AJUSTES'}
+          Ahora
         </button>
-
-        {message && (
-          <p className={`mt-4 text-center ${message.startsWith('Error') ? 'text-red-500' : 'text-green-500'}`}>
-            {message}
-          </p>
-        )}
-      </form>
+        <button
+          type="button"
+          onClick={() => setQuickTime(name, 30)}
+          className="px-3 py-1.5 bg-[#2A2A2A] text-[#E4E4E7] rounded text-xs font-semibold hover:bg-[#3A3A3A] transition-colors"
+        >
+          +30min
+        </button>
+        <button
+          type="button"
+          onClick={() => setQuickTime(name, 60)}
+          className="px-3 py-1.5 bg-[#2A2A2A] text-[#E4E4E7] rounded text-xs font-semibold hover:bg-[#3A3A3A] transition-colors"
+        >
+          +1h
+        </button>
+        <button
+          type="button"
+          onClick={() => setQuickTime(name, 120)}
+          className="px-3 py-1.5 bg-[#2A2A2A] text-[#E4E4E7] rounded text-xs font-semibold hover:bg-[#3A3A3A] transition-colors"
+        >
+          +2h
+        </button>
+        <button
+          type="button"
+          onClick={() => setQuickTime(name, 240)}
+          className="px-3 py-1.5 bg-[#2A2A2A] text-[#E4E4E7] rounded text-xs font-semibold hover:bg-[#3A3A3A] transition-colors"
+        >
+          +4h
+        </button>
+        <button
+          type="button"
+          onClick={() => setQuickTime(name, 1440)}
+          className="px-3 py-1.5 bg-[#2A2A2A] text-[#E4E4E7] rounded text-xs font-semibold hover:bg-[#3A3A3A] transition-colors"
+        >
+          +1 día
+        </button>
+      </div>
     </div>
+  )
+
+  return (
+    <>
+      {/* Custom CSS for dark theme DatePicker */}
+      <style jsx global>{`
+        .react-datepicker {
+          background-color: #1A1A1A !important;
+          border: 1px solid #2A2A2A !important;
+          font-family: monospace;
+        }
+        .react-datepicker__header {
+          background-color: #0A0A0A !important;
+          border-bottom: 1px solid #2A2A2A !important;
+        }
+        .react-datepicker__current-month,
+        .react-datepicker__day-name {
+          color: #00FF41 !important;
+        }
+        .react-datepicker__day {
+          color: #E4E4E7 !important;
+        }
+        .react-datepicker__day:hover {
+          background-color: #2A2A2A !important;
+        }
+        .react-datepicker__day--selected,
+        .react-datepicker__day--keyboard-selected {
+          background-color: #00FF41 !important;
+          color: #0A0A0A !important;
+        }
+        .react-datepicker__time-container {
+          border-left: 1px solid #2A2A2A !important;
+        }
+        .react-datepicker__time-container .react-datepicker__time {
+          background-color: #1A1A1A !important;
+        }
+        .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list {
+          background-color: #1A1A1A !important;
+        }
+        .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item {
+          color: #E4E4E7 !important;
+        }
+        .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item:hover {
+          background-color: #2A2A2A !important;
+        }
+        .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item--selected {
+          background-color: #00FF41 !important;
+          color: #0A0A0A !important;
+        }
+        .react-datepicker__navigation-icon::before {
+          border-color: #E4E4E7 !important;
+        }
+        .react-datepicker__day--disabled {
+          color: #888888 !important;
+        }
+      `}</style>
+
+      <div className="max-w-6xl mx-auto bg-[#141414] border border-[#2A2A2A] rounded-lg p-8">
+        <h2 className="text-2xl text-[#00FF41] mb-2">Ajustes Generales del Evento</h2>
+
+        {/* Mostrar hora actual como referencia */}
+        <div className="mb-6 p-4 bg-[#1A1A1A] rounded-lg border border-[#2A2A2A]">
+          <p className="text-sm text-[#888888] mb-1">Hora Actual (Tu Zona Horaria):</p>
+          <p className="text-2xl font-mono font-bold text-[#00FF41]">
+            {new Date().toLocaleString('es-ES', {
+              dateStyle: 'full',
+              timeStyle: 'medium'
+            })}
+          </p>
+        </div>
+
+        <form onSubmit={handleSaveSettings} className="space-y-6">
+
+          <div className="flex items-center justify-between bg-[#1A1A1A] p-5 rounded-lg">
+            <div>
+              <label htmlFor="registrations_open" className="text-lg font-semibold text-[#E4E4E7] block mb-1">
+                Registros Abiertos (Manual)
+              </label>
+              <p className="text-xs text-[#888888]">Control manual de registros (ignora el temporizador)</p>
+            </div>
+            <input
+              type="checkbox"
+              id="registrations_open"
+              name="registrations_open"
+              className="h-6 w-6 rounded text-[#00FF41] bg-[#2A2A2A] border-[#888888] focus:ring-[#00FF41]"
+              checked={settings.registrations_open || false}
+              onChange={handleChange}
+            />
+          </div>
+
+          <TimeField
+            name="registration_end_time"
+            label="🔒 Fin de Registros y Equipos"
+            value={settings.registration_end_time}
+          />
+
+          <TimeField
+            name="event_start_time"
+            label="🚀 Inicio del CTF"
+            value={settings.event_start_time}
+          />
+
+          <TimeField
+            name="event_end_time"
+            label="🏁 Fin del CTF"
+            value={settings.event_end_time}
+          />
+
+          <button
+            type="submit"
+            className="w-full h-14 mt-4 bg-[#00FF41] text-[#0A0A0A] font-bold text-base tracking-wider uppercase rounded disabled:opacity-50 hover:bg-[#00cc33] transition-colors"
+            disabled={loading}
+          >
+            {loading ? 'GUARDANDO...' : 'GUARDAR AJUSTES'}
+          </button>
+
+          {message && (
+            <p className={`mt-4 text-center font-semibold ${message.startsWith('Error') ? 'text-red-500' : 'text-green-500'}`}>
+              {message}
+            </p>
+          )}
+        </form>
+      </div>
+    </>
   )
 }
