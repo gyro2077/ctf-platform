@@ -20,6 +20,7 @@ type Team = {
   id: string;
   name: string;
   creator_id: string;
+  member_count?: number;
 }
 
 type TeamMember = {
@@ -166,9 +167,24 @@ export default function DashboardPage() {
       setTeamMembers([])
       setChallenges([]) // Limpiar desafíos si no hay equipo
 
-      const { data: availableTeamsData } = await supabase
-        .from('teams').select('id, name, creator_id')
-      if (availableTeamsData) setAvailableTeams(availableTeamsData)
+      // Obtener equipos con conteo de miembros
+      const { data: teamsData } = await supabase
+        .from('teams')
+        .select('id, name, creator_id')
+
+      if (teamsData) {
+        // Para cada equipo, obtener el conteo de miembros
+        const teamsWithCounts = await Promise.all(
+          teamsData.map(async (team) => {
+            const { count } = await supabase
+              .from('team_members')
+              .select('*', { count: 'exact', head: true })
+              .eq('team_id', team.id)
+            return { ...team, member_count: count || 0 }
+          })
+        )
+        setAvailableTeams(teamsWithCounts)
+      }
     }
   }
 
@@ -222,6 +238,21 @@ export default function DashboardPage() {
     if (!user) return
     setIsJoiningTeam(teamId); setTeamError(null)
     try {
+      // Verificar cuántos miembros tiene el equipo actualmente
+      const { data: currentMembers, error: countError } = await supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('team_id', teamId)
+
+      if (countError) throw countError
+
+      // Verificar si el equipo ya tiene 3 miembros (máximo)
+      if (currentMembers && currentMembers.length >= 4) {
+        setTeamError('Este equipo ya está lleno (máximo 3 miembros).')
+        setIsJoiningTeam(null)
+        return
+      }
+
       const { error: joinError } = await supabase
         .from('team_members').insert({ team_id: teamId, user_id: user.id })
       if (joinError) throw joinError
@@ -574,18 +605,31 @@ export default function DashboardPage() {
               <div className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-8">
                 <h2 className="text-2xl text-[#00FF41] mb-6">Unirse a un Equipo</h2>
                 <div className="max-h-80 overflow-y-auto space-y-3 pr-2">
-                  {availableTeams.length > 0 ? availableTeams.map(team => (
-                    <div key={team.id} className="flex justify-between items-center bg-[#1A1A1A] p-4 rounded-md">
-                      <span className="text-lg text-[#E4E4E7]">{team.name}</span>
-                      <button
-                        onClick={() => handleJoinTeam(team.id)}
-                        className="bg-[#2A2A2A] text-[#E4E4E7] border border-[#2A2A2A] h-10 px-6 rounded font-semibold uppercase tracking-wider text-xs transition-all duration-200 hover:bg-[#3A3A3A] disabled:opacity-50"
-                        disabled={isJoiningTeam === team.id || eventIsActive || eventHasEnded}
-                      >
-                        {isJoiningTeam === team.id ? 'UNIENDO...' : 'UNIRSE'}
-                      </button>
-                    </div>
-                  )) : (
+                  {availableTeams.length > 0 ? availableTeams.map(team => {
+                    const memberCount = team.member_count || 0
+                    const isFull = memberCount >= 4
+
+                    return (
+                      <div key={team.id} className="flex justify-between items-center bg-[#1A1A1A] p-4 rounded-md">
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg text-[#E4E4E7]">{team.name}</span>
+                          <span className="text-sm text-[#888888] font-mono">({memberCount}/4)</span>
+                          {isFull && (
+                            <span className="text-xs font-bold bg-red-900 text-red-100 px-2 py-1 rounded">
+                              LLENO
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleJoinTeam(team.id)}
+                          className="bg-[#2A2A2A] text-[#E4E4E7] border border-[#2A2A2A] h-10 px-6 rounded font-semibold uppercase tracking-wider text-xs transition-all duration-200 hover:bg-[#3A3A3A] disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={isJoiningTeam === team.id || eventIsActive || eventHasEnded || isFull}
+                        >
+                          {isJoiningTeam === team.id ? 'UNIENDO...' : isFull ? 'LLENO' : 'UNIRSE'}
+                        </button>
+                      </div>
+                    )
+                  }) : (
                     <p className="text-[#888888]">No hay equipos disponibles. ¡Crea el primero!</p>
                   )}
                 </div>

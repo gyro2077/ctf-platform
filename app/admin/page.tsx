@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
-import EventSettings from '@/components/EventSettings' // <-- AÑADE ESTA LÍNEA
+import EventSettings from '@/components/EventSettings'
+import TeamManagement from '@/components/TeamManagement'
 
 // Tipo para el perfil (simplificado para esta página)
 type Profile = {
@@ -43,7 +44,7 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'challenges' | 'settings'>('challenges') // <-- AÑADE ESTA LÍNEA
+  const [activeTab, setActiveTab] = useState<'challenges' | 'teams' | 'settings'>('challenges')
 
   // Estado para el formulario de "Crear Desafío"
   const [newChallenge, setNewChallenge] = useState<NewChallenge>({
@@ -110,11 +111,11 @@ export default function AdminPage() {
     setChallenges((data || []) as Challenge[])
   }
 
-// Crear desafío
+  // Crear desafío
   const handleCreateChallenge = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
-    
+
     // Convertir hints (string separado por comas o punto y coma) en un array
     const hintsArray = newChallenge.hints
       .split(/[,;]/) // Separa por coma O punto y coma
@@ -133,7 +134,7 @@ export default function AdminPage() {
         hints: hintsArray,       // <-- Inserta el array de hints
         is_visible: false // Por defecto, los nuevos desafíos están ocultos
       })
-    
+
     if (error) {
       setError(error.message)
     } else {
@@ -201,21 +202,28 @@ export default function AdminPage() {
       <nav className="max-w-6xl mx-auto mb-8 flex gap-4">
         <button
           onClick={() => setActiveTab('challenges')}
-          className={`px-6 py-3 rounded-lg font-semibold uppercase tracking-wider ${
-            activeTab === 'challenges'
-              ? 'bg-[#00FF41] text-[#0A0A0A]'
-              : 'bg-[#141414] text-[#888888] hover:bg-[#1f1f1f]'
-          }`}
+          className={`px-6 py-3 rounded-lg font-semibold uppercase tracking-wider ${activeTab === 'challenges'
+            ? 'bg-[#00FF41] text-[#0A0A0A]'
+            : 'bg-[#141414] text-[#888888] hover:bg-[#1f1f1f]'
+            }`}
         >
           Gestionar Desafíos
         </button>
         <button
+          onClick={() => setActiveTab('teams')}
+          className={`px-6 py-3 rounded-lg font-semibold uppercase tracking-wider ${activeTab === 'teams'
+            ? 'bg-[#00FF41] text-[#0A0A0A]'
+            : 'bg-[#141414] text-[#888888] hover:bg-[#1f1f1f]'
+            }`}
+        >
+          Gestión de Equipos
+        </button>
+        <button
           onClick={() => setActiveTab('settings')}
-          className={`px-6 py-3 rounded-lg font-semibold uppercase tracking-wider ${
-            activeTab === 'settings'
-              ? 'bg-[#00FF41] text-[#0A0A0A]'
-              : 'bg-[#141414] text-[#888888] hover:bg-[#1f1f1f]'
-          }`}
+          className={`px-6 py-3 rounded-lg font-semibold uppercase tracking-wider ${activeTab === 'settings'
+            ? 'bg-[#00FF41] text-[#0A0A0A]'
+            : 'bg-[#141414] text-[#888888] hover:bg-[#1f1f1f]'
+            }`}
         >
           Ajustes del Evento
         </button>
@@ -300,9 +308,18 @@ export default function AdminPage() {
         </>
       )}
 
+      {/* --- NUEVA PESTAÑA: GESTIÓN DE EQUIPOS --- */}
+      {activeTab === 'teams' && (
+        <>
+          <TeamManagement />
+        </>
+      )}
+
       {/* --- INICIO: SECCIÓN DE AJUSTES --- */}
       {activeTab === 'settings' && (
-        <EventSettings />
+        <>
+          <EventSettings />
+        </>
       )}
       {/* --- FIN: SECCIÓN DE AJUSTES --- */}
 
