@@ -102,7 +102,6 @@ export default function EventSettings() {
     const { error } = await supabase
       .from('event_settings')
       .update({
-        registrations_open: settings.registrations_open,
         registration_end_time: toUTCISOString(settings.registration_end_time),
         event_start_time: toUTCISOString(settings.event_start_time),
         event_end_time: toUTCISOString(settings.event_end_time),
@@ -116,14 +115,6 @@ export default function EventSettings() {
       setTimeout(() => setMessage(null), 3000)
     }
     setLoading(false)
-  }
-
-  // Manejador de cambios para checkbox
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, type } = e.target
-    if (type === 'checkbox') {
-      setSettings(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }))
-    }
   }
 
   // Manejador para DatePicker
@@ -290,23 +281,6 @@ export default function EventSettings() {
         </div>
 
         <form onSubmit={handleSaveSettings} className="space-y-6">
-
-          <div className="flex items-center justify-between bg-[#1A1A1A] p-5 rounded-lg">
-            <div>
-              <label htmlFor="registrations_open" className="text-lg font-semibold text-[#E4E4E7] block mb-1">
-                Registros Abiertos (Manual)
-              </label>
-              <p className="text-xs text-[#888888]">Control manual de registros (ignora el temporizador)</p>
-            </div>
-            <input
-              type="checkbox"
-              id="registrations_open"
-              name="registrations_open"
-              className="h-6 w-6 rounded text-[#00FF41] bg-[#2A2A2A] border-[#888888] focus:ring-[#00FF41]"
-              checked={settings.registrations_open || false}
-              onChange={handleChange}
-            />
-          </div>
 
           <TimeField
             name="registration_end_time"

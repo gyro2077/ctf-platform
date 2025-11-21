@@ -68,21 +68,35 @@ export default function SignUpPage() {
   const [success, setSuccess] = useState(false)
   const [checkingSettings, setCheckingSettings] = useState(true)
   const [registrationsOpen, setRegistrationsOpen] = useState(false)
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false) // <-- AÑADIDO
-  const [hasAcceptedPrivacy, setHasAcceptedPrivacy] = useState(false) // <-- AÑADIDO
+  const [registrationEndTime, setRegistrationEndTime] = useState<string | null>(null)
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false)
+  const [hasAcceptedPrivacy, setHasAcceptedPrivacy] = useState(false)
 
   const router = useRouter()
 
-  // Carga de ajustes del evento (sin cambios)
+  // Carga de ajustes del evento
   useEffect(() => {
     const fetchEventSettings = async () => {
       const { data, error } = await supabase
         .from('event_settings')
-        .select('registrations_open')
+        .select('registration_end_time')
         .eq('id', 1)
         .single()
-      if (data) setRegistrationsOpen(data.registrations_open)
-      else setErrors((prev) => ({ ...prev, form: 'No se pudo cargar la configuración del evento.' }))
+
+      if (data) {
+        setRegistrationEndTime(data.registration_end_time)
+        // Verificar si los registros están abiertos basado en el tiempo
+        const now = new Date().getTime()
+        const endTime = data.registration_end_time ? new Date(data.registration_end_time).getTime() : null
+
+        if (endTime && now <= endTime) {
+          setRegistrationsOpen(true)
+        } else {
+          setRegistrationsOpen(false)
+        }
+      } else {
+        setErrors((prev) => ({ ...prev, form: 'No se pudo cargar la configuración del evento.' }))
+      }
       setCheckingSettings(false)
     }
     fetchEventSettings()
