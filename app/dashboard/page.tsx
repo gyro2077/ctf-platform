@@ -402,13 +402,16 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Contenedor para botones de admin y logout */}
+        {/* Contenedor para botones de admin, certificados y logout */}
         <div className="flex items-center gap-4">
           {profile?.is_admin && (
             <a href="/admin" className="text-[#00FF41] hover:underline font-semibold uppercase tracking-wider">
               Admin
             </a>
           )}
+          <a href="/dashboard/certificates" className="text-[#00FF41] hover:underline font-semibold uppercase tracking-wider">
+            Mis Certificados
+          </a>
           <LogoutButton />
         </div>
       </header>
